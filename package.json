@@ -1,0 +1,22 @@
+{
+  "name": "marionette",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,green \"pnpm --filter marionette-server dev\" \"pnpm --filter marionette-web dev\"",
+    "dev:backend": "pnpm --filter marionette-server dev",
+    "dev:frontend": "pnpm --filter marionette-web dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "format": "pnpm -r format"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

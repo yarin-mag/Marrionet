@@ -1,0 +1,353 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    /* Base Colors - Clean Jira/Monday style */
+    --background: 0 0% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 213 94% 68%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 210 16% 93%;
+    --input: 214 32% 91%;
+    --ring: 213 94% 68%;
+    --radius: 0.5rem;
+
+    /* Status Colors - Monday.com inspired */
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --success-light: 142 71% 90%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 222 47% 11%;
+    --warning-light: 38 92% 90%;
+    --error: 0 84% 60%;
+    --error-foreground: 0 0% 100%;
+    --error-light: 0 84% 90%;
+    --info: 199 89% 48%;
+    --info-foreground: 0 0% 100%;
+    --info-light: 199 89% 90%;
+
+    /* Neutral Scale - Jira-inspired grays */
+    --gray-50: 210 20% 98%;
+    --gray-100: 210 20% 96%;
+    --gray-200: 210 16% 93%;
+    --gray-300: 210 14% 89%;
+    --gray-400: 210 11% 71%;
+    --gray-500: 210 9% 55%;
+    --gray-600: 210 10% 40%;
+    --gray-700: 210 15% 25%;
+    --gray-800: 210 20% 15%;
+    --gray-900: 210 24% 10%;
+
+    /* Border variations */
+    --border-strong: 210 14% 89%;
+
+    /* Shadows - Elevation System */
+    --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+    --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+
+    /* Spacing Scale - 8px base */
+    --spacing-xs: 0.25rem;
+    --spacing-sm: 0.5rem;
+    --spacing-md: 0.75rem;
+    --spacing-lg: 1rem;
+    --spacing-xl: 1.5rem;
+    --spacing-2xl: 2rem;
+    --spacing-3xl: 3rem;
+    --spacing-4xl: 4rem;
+
+    /* Border Radius Scale */
+    --radius-sm: 0.25rem;
+    --radius-md: 0.375rem;
+    --radius-lg: 0.5rem;
+    --radius-xl: 0.75rem;
+    --radius-2xl: 1rem;
+
+    /* Typography Scale */
+    --font-size-xs: 0.75rem;
+    --font-size-sm: 0.875rem;
+    --font-size-base: 1rem;
+    --font-size-lg: 1.125rem;
+    --font-size-xl: 1.25rem;
+    --font-size-2xl: 1.5rem;
+    --font-size-3xl: 1.875rem;
+    --font-size-4xl: 2.25rem;
+
+    /* Line Heights */
+    --leading-tight: 1.25;
+    --leading-snug: 1.375;
+    --leading-normal: 1.5;
+    --leading-relaxed: 1.625;
+    --leading-loose: 2;
+
+    /* Transitions */
+    --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .dark {
+    /* Dark theme - Professional and clean */
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+    --card: 217 32% 17%;
+    --card-foreground: 210 40% 98%;
+    --popover: 217 32% 17%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 213 94% 68%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217 32% 22%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 32% 22%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 32% 22%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 217 32% 27%;
+    --border-strong: 217 32% 35%;
+    --input: 217 32% 27%;
+    --ring: 213 94% 68%;
+
+    /* Status colors for dark mode */
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --success-light: 142 71% 20%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --warning-light: 38 92% 20%;
+    --error: 0 84% 60%;
+    --error-foreground: 0 0% 100%;
+    --error-light: 0 84% 20%;
+    --info: 199 89% 48%;
+    --info-foreground: 0 0% 100%;
+    --info-light: 199 89% 20%;
+
+    /* Gradient stops for fancy UI */
+    --gradient-purple-start: 239 84% 67%;
+    --gradient-purple-end: 250 85% 63%;
+    --gradient-success-start: 158 64% 52%;
+    --gradient-success-end: 173 58% 39%;
+    --gradient-warning-start: 38 92% 50%;
+    --gradient-warning-end: 25 95% 53%;
+    --gradient-error-start: 351 95% 71%;
+    --gradient-error-end: 0 84% 60%;
+
+    /* Glow colors */
+    --glow-success: rgba(16, 185, 129, 0.4);
+    --glow-warning: rgba(245, 158, 11, 0.4);
+    --glow-error: rgba(239, 68, 68, 0.4);
+    --glow-primary: rgba(99, 102, 241, 0.4);
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  /**
+   * Cursor Utilities
+   *
+   * Interactive components (buttons, tabs, clickable cards) have cursor-pointer
+   * applied at the component level. Use these utilities for custom cases:
+   *
+   * .interactive-cursor - Standard clickable element (pointer + subtle scale)
+   * .cursor-grab-able - Draggable elements
+   * .cursor-help-hint - Elements with tooltips or help text
+   * .cursor-text-editable - Text input areas
+   * .link-cursor - Styled links with underline on hover
+   *
+   * Disabled states automatically use cursor-not-allowed
+   */
+
+  /* Interactive element cursor styles */
+  .interactive-cursor {
+    @apply cursor-pointer transition-transform hover:scale-[1.02];
+  }
+
+  .interactive-cursor:active {
+    @apply scale-[0.98];
+  }
+
+  .interactive-cursor:disabled,
+  .interactive-cursor[aria-disabled="true"] {
+    @apply cursor-not-allowed;
+  }
+
+  /* Specific cursor types */
+  .cursor-grab-able {
+    @apply cursor-grab;
+  }
+
+  .cursor-grab-able:active {
+    @apply cursor-grabbing;
+  }
+
+  .cursor-help-hint {
+    @apply cursor-help;
+  }
+
+  .cursor-text-editable {
+    @apply cursor-text;
+  }
+
+  /* Link cursor with underline on hover */
+  .link-cursor {
+    @apply cursor-pointer hover:underline;
+  }
+
+  /* Typography Utilities */
+  .text-display-lg {
+    font-size: var(--font-size-4xl);
+    line-height: var(--leading-tight);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .text-display-md {
+    font-size: var(--font-size-3xl);
+    line-height: var(--leading-tight);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .text-heading-lg {
+    font-size: var(--font-size-2xl);
+    line-height: var(--leading-snug);
+    font-weight: 600;
+  }
+
+  .text-heading-md {
+    font-size: var(--font-size-xl);
+    line-height: var(--leading-snug);
+    font-weight: 600;
+  }
+
+  .text-heading-sm {
+    font-size: var(--font-size-lg);
+    line-height: var(--leading-normal);
+    font-weight: 600;
+  }
+
+  .text-body-lg {
+    font-size: var(--font-size-base);
+    line-height: var(--leading-relaxed);
+  }
+
+  .text-body-md {
+    font-size: var(--font-size-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .text-body-sm {
+    font-size: var(--font-size-xs);
+    line-height: var(--leading-normal);
+  }
+
+  .text-label {
+    font-size: var(--font-size-xs);
+    line-height: var(--leading-tight);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* Smooth page transitions */
+  .page-transition {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  /* Staggered list animations */
+  .stagger-item {
+    animation: fadeInUp 0.4s ease-out backwards;
+  }
+
+  .stagger-item:nth-child(1) { animation-delay: 0.05s; }
+  .stagger-item:nth-child(2) { animation-delay: 0.1s; }
+  .stagger-item:nth-child(3) { animation-delay: 0.15s; }
+  .stagger-item:nth-child(4) { animation-delay: 0.2s; }
+  .stagger-item:nth-child(5) { animation-delay: 0.25s; }
+
+  /* Interactive element scaling */
+  .interactive-scale {
+    transition: transform var(--transition-base);
+  }
+
+  .interactive-scale:hover {
+    transform: scale(1.02);
+  }
+
+  .interactive-scale:active {
+    transform: scale(0.98);
+  }
+
+  /* Animation keyframes */
+  @keyframes shimmer {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.7;
+    }
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slideInRight {
+    from {
+      opacity: 0;
+      transform: translateX(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes glowPulse {
+    0%, 100% {
+      box-shadow: 0 0 10px var(--glow-color);
+    }
+    50% {
+      box-shadow: 0 0 25px var(--glow-color);
+    }
+  }
+}

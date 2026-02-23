@@ -1,0 +1,24 @@
+import type { Request, Response, NextFunction } from "express";
+import { logger } from "../utils/logger.js";
+
+/**
+ * Global error handler middleware
+ * Must be registered last in the middleware chain
+ */
+export const errorHandler = (
+  err: Error,
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  logger.error(`Request error [${req.method} ${req.path}]:`, err);
+
+  const statusCode = (err as any).statusCode || 500;
+  const message = err.message || "Internal server error";
+
+  res.status(statusCode).json({
+    error: message,
+    path: req.path,
+    method: req.method
+  });
+};

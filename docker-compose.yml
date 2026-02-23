@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  # Backend API server
+  backend:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    container_name: marionette-backend
+    ports:
+      - "8787:8787"
+    environment:
+      - NODE_ENV=production
+      - PORT=8787
+      - DATABASE_URL=sqlite:/app/db/marionette.db
+    volumes:
+      - ./db:/app/db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8787/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - marionette-network
+
+  # Frontend web dashboard
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: marionette-frontend
+    ports:
+      - "5173:80"
+    environment:
+      - VITE_API_URL=http://localhost:8787
+      - VITE_WS_URL=ws://localhost:8787
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - marionette-network
+
+networks:
+  marionette-network:
+    driver: bridge
+
+volumes:
+  db-data:
+    driver: local
