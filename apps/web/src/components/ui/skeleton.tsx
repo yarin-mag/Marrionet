@@ -2,14 +2,19 @@ import * as React from "react";
 import { cn } from "../../lib/utils";
 
 /**
- * Skeleton component - Loading placeholder with pulse animation
+ * Skeleton component - Loading placeholder with shimmer animation
  * @example
  * <Skeleton className="h-12 w-12 rounded-lg" />
  */
 function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("animate-pulse rounded-md bg-muted", className)}
+      className={cn(
+        "rounded-md",
+        "bg-[length:200%_100%] animate-[shimmer_1.6s_infinite_linear]",
+        "bg-gradient-to-r from-muted via-muted-foreground/10 to-muted",
+        className
+      )}
       {...props}
     />
   );

@@ -1,4 +1,6 @@
 import type { Message } from "@marionette/shared";
+
+const COMMAND_PREFIX = "/";
 import { MessageRepository } from "../repositories/message.repository.js";
 import { CommandService } from "./command.service.js";
 import { WebSocketService } from "./websocket.service.js";
@@ -22,8 +24,7 @@ export class MessageService {
     content: string,
     userId?: string
   ): Promise<Message> {
-    // Determine if this is a command or regular message
-    const isCommand = content.trim().startsWith('/');
+    const isCommand = content.trim().startsWith(COMMAND_PREFIX);
     const messageType = isCommand ? 'command' : 'text';
 
     // Create message in database

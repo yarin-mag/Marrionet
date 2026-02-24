@@ -73,3 +73,16 @@ CREATE INDEX IF NOT EXISTS idx_messages_agent_id ON messages(agent_id);
 CREATE INDEX IF NOT EXISTS idx_messages_direction ON messages(direction);
 CREATE INDEX IF NOT EXISTS idx_messages_status ON messages(status);
 CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at DESC);
+
+-- Personal tasks table: user-created calendar notes/tasks
+CREATE TABLE IF NOT EXISTS personal_tasks (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT,
+    start_time TIMESTAMP NOT NULL,
+    end_time TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_personal_tasks_start ON personal_tasks(start_time);

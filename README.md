@@ -35,7 +35,7 @@ pnpm start
 
 ### Alternative: Quick Install (All-in-One)
 ```bash
-./install.sh  # Automated setup for CI/CD or quick testing
+./setup.sh  # Automated setup for CI/CD or quick testing
 ```
 
 For complete installation guide and troubleshooting, see [SETUP.md](SETUP.md)
@@ -91,7 +91,7 @@ See [SETUP.md](SETUP.md) for detailed setup instructions.
 
 #### Project Structure
 - `apps/server/` - Backend API (Express + WebSocket)
-- `apps/frontend/` - Web dashboard (React + Vite)
+- `apps/web/` - Web dashboard (React + Vite)
 - `scripts/` - Claude wrapper (TypeScript modules)
 - `docs/` - Documentation and guides
 

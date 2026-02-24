@@ -56,6 +56,18 @@ class ApiService {
   }
 
   /**
+   * Delete a single agent by ID
+   */
+  async deleteAgent(agentId: string): Promise<void> {
+    const res = await fetch(`${this.baseUrl}/api/agents/${agentId}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to delete agent: ${res.statusText}`);
+    }
+  }
+
+  /**
    * Delete all agents
    */
   async deleteAllAgents(): Promise<{ deleted: number }> {

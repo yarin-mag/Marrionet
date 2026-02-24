@@ -2,7 +2,9 @@ import { createHash } from "node:crypto";
 import os from "node:os";
 
 export function uid(prefix = "id"): string {
-  const rand = Math.random().toString(16).slice(2);
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  const rand = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
   return `${prefix}_${Date.now().toString(36)}_${rand}`;
 }
 

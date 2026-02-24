@@ -35,7 +35,7 @@
 │  │ Performance Mon.│  → CPU/Memory stats                           │
 │  └─────────────────┘                                                │
 │         │                                                            │
-│         │ WebSocket Connection (ws://localhost:8080/agent-stream)   │
+│         │ WebSocket Connection (ws://localhost:8787/agent-stream)   │
 │         ▼                                                            │
 └─────────────────────────────────────────────────────────────────────┘
                              │
@@ -44,7 +44,7 @@
 ┌─────────────────────────────────────────────────────────────────────┐
 │                       BACKEND SERVER                                 │
 │                    (Node.js - Express + WS)                          │
-│                    PORT: 8080                                        │
+│                    PORT: 8787                                        │
 │                                                                       │
 │  ┌──────────────────────────────────────────────────────────────┐  │
 │  │  WebSocket Server (/agent-stream)                            │  │
@@ -153,7 +153,7 @@
 ### 1. Installation Phase
 
 ```bash
-$ ./install.sh
+$ ./setup.sh
 ```
 
 ```
@@ -197,10 +197,10 @@ $ cd backend && npm run dev
       │    └──> ✓ Migrations up to date (v1)
       │
       ├──> Start HTTP server
-      │    └──> ✓ HTTP server listening on :8080
+      │    └──> ✓ HTTP server listening on :8787
       │
       ├──> Start WebSocket server
-      │    └──> ✓ WebSocket ready at ws://localhost:8080/agent-stream
+      │    └──> ✓ WebSocket ready at ws://localhost:8787/agent-stream
       │
       └──> ✓ Backend ready!
 ```
@@ -221,7 +221,7 @@ $ cd web && npm run dev
 [Web Dev Server Starts]
       │
       ├──> Read .env configuration
-      │    └──> VITE_API_URL=http://localhost:8080
+      │    └──> VITE_API_URL=http://localhost:8787
       │
       ├──> Build React app
       │
@@ -251,7 +251,7 @@ $ claude chat
       │    └──> Session ID: session_1708387200_def456
       │
       ├──> Connect to backend WebSocket
-      │    └──> ws://localhost:8080/agent-stream
+      │    └──> ws://localhost:8787/agent-stream
       │    └──> ✓ Connected to Marionette backend
       │
       ├──> Emit: agent_started event
@@ -354,7 +354,7 @@ $ claude chat
       ▼
 [Web dashboard requests data]
       │
-      └──> GET http://localhost:8080/api/conversations
+      └──> GET http://localhost:8787/api/conversations
            │
            ▼
       [Backend handles request]
@@ -403,7 +403,7 @@ user  12347  node /usr/local/bin/claude-wrapper  # Wrapper (per Claude session)
 ### Port Usage
 
 - **3000** - Web dashboard (HTTP)
-- **8080** - Backend API (HTTP) + WebSocket
+- **8787** - Backend API (HTTP) + WebSocket
 - **5432** - PostgreSQL (if using, TCP)
 
 ### File System
@@ -453,7 +453,7 @@ marionette/
 
 ```bash
 git clone repo
-./install.sh        # ← Database automatically set up here
+./setup.sh        # ← Database automatically set up here
 cd backend && npm run dev  # ← Database automatically connected here
 cd web && npm run dev
 claude chat         # ← Everything just works!

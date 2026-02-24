@@ -36,7 +36,6 @@ export class DatabaseClient {
       // Enable WAL mode for better concurrency
       this.db.pragma("journal_mode = WAL");
 
-      // Enable foreign keys
       this.db.pragma("foreign_keys = ON");
 
       logger.info("SQLite database connected");
@@ -100,7 +99,6 @@ export class DatabaseClient {
    * Converts PostgreSQL-style placeholders ($1, $2) to SQLite-style (?, ?)
    */
   static async query<T = any>(sql: string, params: any[] = []): Promise<T[]> {
-    // Convert PostgreSQL placeholders to SQLite
     const sqliteSql = this.convertPlaceholders(sql);
 
     try {
@@ -110,12 +108,10 @@ export class DatabaseClient {
       const hasReturning = upper.includes('RETURNING');
 
       if (isSelect || hasReturning) {
-        // Statement returns rows — use all()
         const rows = stmt.all(...params) as T[];
         (rows as any).rowCount = rows.length;
         return rows;
       } else {
-        // INSERT/UPDATE/DELETE without RETURNING — use run()
         const result = stmt.run(...params);
         const rows: T[] = [];
         (rows as any).rowCount = result.changes;
@@ -186,8 +182,6 @@ export class DatabaseClient {
    * Convert PostgreSQL-style placeholders ($1, $2) to SQLite-style (?, ?)
    */
   private static convertPlaceholders(sql: string): string {
-    // Replace PostgreSQL placeholders with SQLite placeholders
-    // $1, $2, $3... → ?, ?, ?...
     return sql.replace(/\$(\d+)/g, () => '?');
   }
 

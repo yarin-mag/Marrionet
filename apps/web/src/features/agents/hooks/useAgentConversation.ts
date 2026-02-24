@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import type { ConversationSession, ConversationTurn } from '@marionette/shared';
+import { createAgentSocket } from '../../../services/agentSocket';
+import type { AgentSocketConnection } from '../../../services/agentSocket';
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8787';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
 
 interface UseAgentConversationResult {
@@ -23,7 +24,7 @@ export function useAgentConversation(agentId: string): UseAgentConversationResul
   const [isLoading, setIsLoading] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
+  const socketRef = useRef<AgentSocketConnection | null>(null);
 
   // Fetch conversation history when the modal opens
   useEffect(() => {
@@ -57,154 +58,92 @@ export function useAgentConversation(agentId: string): UseAgentConversationResul
 
   // Connect to WebSocket for real-time updates
   useEffect(() => {
-    let reconnectTimer: ReturnType<typeof setTimeout>;
-    let mounted = true;
+    const socket = createAgentSocket({
+      onOpen: () => {
+        setIsConnected(true);
+        setError(null);
+      },
+      onMessage: (event) => {
+        try {
+          const data = JSON.parse(event.data as string);
 
-    const connect = () => {
-      if (!mounted) return;
-
-      try {
-        const ws = new WebSocket(`${WS_URL}/client-stream`);
-        wsRef.current = ws;
-
-        ws.onopen = () => {
-          if (!mounted) return;
-          console.log('WebSocket connected');
-          setIsConnected(true);
-          setError(null);
-        };
-
-        ws.onmessage = (event) => {
-          if (!mounted) return;
-
-          try {
-            const data = JSON.parse(event.data);
-
-            // Handle conversation turn — skip duplicates (already in history)
-            if (data.type === 'conversation.turn' && data.agent_id === agentId) {
-              setConversation((prev: ConversationSession) => {
-                if (data.message?.id && prev.turns.some((t: ConversationTurn) => t.id === data.message.id)) {
-                  return prev;
-                }
-                return {
-                  ...prev,
-                  session_id: data.session_id || prev.session_id,
-                  turns: [...prev.turns, data.message],
-                  turn_count: prev.turn_count + 1,
-                };
-              });
-            }
-
-            // Handle conversation started
-            if (data.type === 'conversation.started' && data.agent_id === agentId) {
-              setConversation((prev: ConversationSession) => ({
+          if (data.type === 'conversation.turn' && data.agent_id === agentId) {
+            setConversation((prev: ConversationSession) => {
+              if (data.message?.id && prev.turns.some((t: ConversationTurn) => t.id === data.message.id)) {
+                return prev;
+              }
+              return {
                 ...prev,
-                session_id: data.session_id,
-                started_at: data.timestamp,
-                turns: [],
-                turn_count: 0,
-              }));
-            }
-
-            // Handle conversation ended
-            if (data.type === 'conversation.ended' && data.agent_id === agentId) {
-              setConversation((prev: ConversationSession) => ({
-                ...prev,
-                ended_at: data.timestamp,
-              }));
-            }
-          } catch (err) {
-            console.error('Failed to parse WebSocket message:', err);
+                session_id: data.session_id || prev.session_id,
+                turns: [...prev.turns, data.message],
+                turn_count: prev.turn_count + 1,
+              };
+            });
           }
-        };
 
-        ws.onerror = (err) => {
-          if (!mounted) return;
-          console.error('WebSocket error:', err);
-          setError('WebSocket connection error');
-          setIsConnected(false);
-        };
+          if (data.type === 'conversation.started' && data.agent_id === agentId) {
+            setConversation((prev: ConversationSession) => ({
+              ...prev,
+              session_id: data.session_id,
+              started_at: data.timestamp,
+              turns: [],
+              turn_count: 0,
+            }));
+          }
 
-        ws.onclose = () => {
-          if (!mounted) return;
-          console.log('WebSocket disconnected');
-          setIsConnected(false);
-
-          // Attempt to reconnect after 3 seconds
-          reconnectTimer = setTimeout(() => {
-            if (mounted) {
-              console.log('Attempting to reconnect...');
-              connect();
-            }
-          }, 3000);
-        };
-      } catch (err) {
-        console.error('Failed to create WebSocket:', err);
-        setError('Failed to connect to WebSocket');
+          if (data.type === 'conversation.ended' && data.agent_id === agentId) {
+            setConversation((prev: ConversationSession) => ({
+              ...prev,
+              ended_at: data.timestamp,
+            }));
+          }
+        } catch {
+          // Ignore malformed messages
+        }
+      },
+      onError: () => {
+        setError('WebSocket connection error');
         setIsConnected(false);
+      },
+      onClose: () => {
+        setIsConnected(false);
+      },
+    });
 
-        // Retry connection
-        reconnectTimer = setTimeout(() => {
-          if (mounted) connect();
-        }, 3000);
-      }
-    };
-
-    connect();
+    socketRef.current = socket;
 
     return () => {
-      mounted = false;
-      clearTimeout(reconnectTimer);
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
+      socket.close();
+      socketRef.current = null;
     };
   }, [agentId]);
 
-  // Send message to agent
   const sendMessage = async (content: string): Promise<void> => {
     if (!content.trim()) {
       throw new Error('Message content cannot be empty');
     }
 
     try {
-      // Try WebSocket first if connected
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(
-          JSON.stringify({
-            type: 'message.send',
-            agent_id: agentId,
-            content: content.trim(),
-          })
-        );
+      const ws = socketRef.current?.getSocket();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'message.send', agent_id: agentId, content: content.trim() }));
         return;
       }
 
-      // Fallback to HTTP if WebSocket not connected
       const response = await fetch(`${API_URL}/api/conversation/${agentId}/send`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: content.trim() }),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to send message');
+        throw new Error((errorData as { error?: string }).error || 'Failed to send message');
       }
     } catch (err) {
-      console.error('Failed to send message:', err);
       throw err;
     }
   };
 
-  return {
-    conversation,
-    isLoading,
-    isConnected,
-    sendMessage,
-    error,
-  };
+  return { conversation, isLoading, isConnected, sendMessage, error };
 }

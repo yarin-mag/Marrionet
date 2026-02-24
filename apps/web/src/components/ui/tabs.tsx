@@ -37,7 +37,8 @@ const TabsList = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivEl
     <div
       ref={ref}
       className={cn(
-        "inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground",
+        "flex w-full items-center gap-1 rounded-xl border border-border bg-muted/50 p-1.5",
+        "dark:bg-slate-800/60 dark:border-slate-700/60",
         className
       )}
       {...props}
@@ -48,10 +49,12 @@ TabsList.displayName = "TabsList";
 
 interface TabsTriggerProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   value: string;
+  /** Tailwind classes applied to the button when this tab is active (e.g. gradient + shadow) */
+  activeClassName?: string;
 }
 
 const TabsTrigger = React.forwardRef<HTMLButtonElement, TabsTriggerProps>(
-  ({ className, value, ...props }, ref) => {
+  ({ className, value, activeClassName, ...props }, ref) => {
     const { value: selectedValue, onValueChange } = useTabsContext();
     const isSelected = selectedValue === value;
 
@@ -60,10 +63,16 @@ const TabsTrigger = React.forwardRef<HTMLButtonElement, TabsTriggerProps>(
         ref={ref}
         type="button"
         className={cn(
-          "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium cursor-pointer ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed",
+          "inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-4 py-2 text-sm cursor-pointer",
+          "ring-offset-background transition-all duration-200",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+          "disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed",
           isSelected
-            ? "bg-background text-foreground shadow"
-            : "hover:bg-background/50 hover:text-foreground",
+            ? cn(
+                "font-semibold",
+                activeClassName ?? "bg-primary text-primary-foreground"
+              )
+            : "font-medium text-muted-foreground hover:text-foreground hover:bg-background/60",
           className
         )}
         onClick={() => onValueChange(value)}

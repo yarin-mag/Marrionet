@@ -1,6 +1,6 @@
 import type { AgentSnapshot } from "@marionette/shared";
 import { FolderOpen, Activity, Moon, AlertTriangle, WifiOff } from "lucide-react";
-import { StatCard } from "../../../components/ui/stat-card";
+import { FancyStatCard } from "../../../components/ui/fancy-stat-card";
 import { useDashboardStats } from "../hooks/useDashboardStats";
 
 interface DashboardStatsProps {
@@ -25,24 +25,40 @@ export function DashboardStats({ agents }: DashboardStatsProps) {
 
   return (
     <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
-      <StatCard label="Active Agents" value={totalCount} icon={FolderOpen} />
-      <StatCard
+      <FancyStatCard
+        label="Active Agents"
+        value={totalCount}
+        icon={FolderOpen}
+        gradient="from-blue-500 to-blue-600"
+        animated
+      />
+      <FancyStatCard
         label="Working"
         value={workingCount}
         icon={Activity}
-        variant="success"
+        gradient="from-green-500 to-emerald-600"
+        animated
       />
-      <StatCard label="Idle" value={idleCount} icon={Moon} />
-      <StatCard
+      <FancyStatCard
+        label="Idle"
+        value={idleCount}
+        icon={Moon}
+        gradient="from-slate-400 to-slate-500"
+        animated
+      />
+      <FancyStatCard
         label="Needs Attention"
         value={needsAttentionCount}
         icon={AlertTriangle}
-        variant="warning"
+        gradient="from-orange-500 to-amber-500"
+        animated
       />
-      <StatCard
+      <FancyStatCard
         label="Retired"
         value={retiredCount}
         icon={WifiOff}
+        gradient="from-slate-500 to-slate-600"
+        animated
       />
     </div>
   );

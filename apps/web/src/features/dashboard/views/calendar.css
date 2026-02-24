@@ -125,6 +125,27 @@
   margin-right: 0;
 }
 
+/* Pointer cursor on empty time slots and month day cells */
+.rbc-time-slot,
+.rbc-timeslot-group,
+.rbc-day-bg,
+.rbc-month-row .rbc-day-bg,
+.rbc-date-cell {
+  cursor: pointer;
+}
+
+/* Subtle hover highlight on empty areas */
+.rbc-day-slot .rbc-time-slot:hover,
+.rbc-day-bg:hover {
+  background-color: hsl(var(--accent) / 0.15);
+}
+
+/* Keep default cursor on event blocks so pointer isn't redundant */
+.rbc-event,
+.rbc-event-content {
+  cursor: pointer;
+}
+
 /* Israeli timezone indicator */
 .timezone-badge {
   display: inline-flex;

@@ -98,12 +98,10 @@ export function GridView({ agents, onAgentClick }: GridViewProps) {
           variant="success"
           defaultExpanded={true}
         >
-          {workingAgents.map((agent) => (
-            <AgentCard
-              key={agent.agent_id}
-              agent={agent}
-              onClick={() => onAgentClick(agent)}
-            />
+          {workingAgents.map((agent, index) => (
+            <div key={agent.agent_id} className="stagger-item" style={{ animationDelay: `${index * 0.07}s` }}>
+              <AgentCard agent={agent} onClick={() => onAgentClick(agent)} />
+            </div>
           ))}
         </StatusSection>
       )}
@@ -116,12 +114,10 @@ export function GridView({ agents, onAgentClick }: GridViewProps) {
           variant="error"
           defaultExpanded={true}
         >
-          {needsAttention.map((agent) => (
-            <AgentCard
-              key={agent.agent_id}
-              agent={agent}
-              onClick={() => onAgentClick(agent)}
-            />
+          {needsAttention.map((agent, index) => (
+            <div key={agent.agent_id} className="stagger-item" style={{ animationDelay: `${index * 0.07}s` }}>
+              <AgentCard agent={agent} onClick={() => onAgentClick(agent)} />
+            </div>
           ))}
         </StatusSection>
       )}
@@ -134,12 +130,10 @@ export function GridView({ agents, onAgentClick }: GridViewProps) {
           variant="default"
           defaultExpanded={true}
         >
-          {idleAgents.map((agent) => (
-            <AgentCard
-              key={agent.agent_id}
-              agent={agent}
-              onClick={() => onAgentClick(agent)}
-            />
+          {idleAgents.map((agent, index) => (
+            <div key={agent.agent_id} className="stagger-item" style={{ animationDelay: `${index * 0.07}s` }}>
+              <AgentCard agent={agent} onClick={() => onAgentClick(agent)} />
+            </div>
           ))}
         </StatusSection>
       )}
@@ -152,12 +146,10 @@ export function GridView({ agents, onAgentClick }: GridViewProps) {
           variant="default"
           defaultExpanded={false}
         >
-          {retiredAgents.map((agent) => (
-            <AgentCard
-              key={agent.agent_id}
-              agent={agent}
-              onClick={() => onAgentClick(agent)}
-            />
+          {retiredAgents.map((agent, index) => (
+            <div key={agent.agent_id} className="stagger-item" style={{ animationDelay: `${index * 0.07}s` }}>
+              <AgentCard agent={agent} onClick={() => onAgentClick(agent)} />
+            </div>
           ))}
         </StatusSection>
       )}

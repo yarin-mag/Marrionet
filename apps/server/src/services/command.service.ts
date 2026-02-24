@@ -1,4 +1,6 @@
 import type { CommandDefinition, CommandResponse, MarionetteEvent } from "@marionette/shared";
+
+const MESSAGE_PREVIEW_LENGTH = 200;
 import { AgentService } from "./agent.service.js";
 import { EventService } from "./event.service.js";
 import { MessageRepository } from "../repositories/message.repository.js";
@@ -244,7 +246,7 @@ export class CommandService {
         id: msg.id,
         direction: msg.direction,
         type: msg.messageType,
-        content: msg.content.substring(0, 200), // Truncate for preview
+        content: msg.content.substring(0, MESSAGE_PREVIEW_LENGTH),
         status: msg.status,
         timestamp: msg.createdAt
       })),
@@ -253,76 +255,62 @@ export class CommandService {
   }
 
   /**
-   * /inspect - Deep inspection
+   * /inspect - Deep inspection of agent state
    */
-  private async handleInspect(agentId: string, args?: { target?: string }): Promise<any> {
+  private async handleInspect(agentId: string, args?: { target?: string }): Promise<Record<string, unknown>> {
     const agent = await this.agentService.getAgent(agentId);
-    if (!agent) {
-      throw new Error(`Agent not found: ${agentId}`);
-    }
+    if (!agent) throw new Error(`Agent not found: ${agentId}`);
 
     const target = args?.target || 'all';
     const recentEvents = await this.eventService.getEventsByAgentId(agentId, 100);
 
-    const result: any = {
+    return {
       agentId,
       target,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      ...(target === 'all' || target === 'thinking'  ? { thinking:  this.inspectThinking(recentEvents) } : {}),
+      ...(target === 'all' || target === 'context'   ? { context:   this.inspectContext(agent) }         : {}),
+      ...(target === 'all' || target === 'metrics'   ? { metrics:   this.inspectMetrics(agent) }         : {}),
+      ...(target === 'all' || target === 'tools'     ? { tools:     this.inspectTools(recentEvents) }    : {}),
     };
+  }
 
-    if (target === 'all' || target === 'thinking') {
-      // Extract thinking/reasoning events
-      result.thinking = recentEvents
-        .filter(e => e.type === 'step.started' || e.type === 'step.ended')
-        .map((e: MarionetteEvent) => ({
-          type: e.type,
-          summary: e.summary,
-          timestamp: e.ts,
-          duration: e.duration_ms
-        }));
-    }
+  private inspectThinking(events: MarionetteEvent[]) {
+    return events
+      .filter(e => e.type === 'step.started' || e.type === 'step.ended')
+      .map(e => ({ type: e.type, summary: e.summary, timestamp: e.ts, duration: e.duration_ms }));
+  }
 
-    if (target === 'all' || target === 'context') {
-      // Full context data
-      result.context = {
-        agent: {
-          id: agent.agent_id,
-          name: agent.agent_name,
-          status: agent.status,
-          terminal: agent.terminal,
-          cwd: agent.cwd
-        },
-        currentTask: agent.current_task,
-        metadata: agent.metadata
-      };
-    }
+  private inspectContext(agent: Awaited<ReturnType<AgentService["getAgent"]>>) {
+    return {
+      agent: {
+        id: agent!.agent_id,
+        name: agent!.agent_name,
+        status: agent!.status,
+        terminal: agent!.terminal,
+        cwd: agent!.cwd,
+      },
+      currentTask: agent!.current_task,
+      metadata: agent!.metadata,
+    };
+  }
 
-    if (target === 'all' || target === 'metrics') {
-      // Performance metrics
-      result.metrics = {
-        runs: agent.total_runs,
-        tasks: agent.total_tasks,
-        errors: agent.total_errors,
-        tokens: agent.total_tokens,
-        duration: agent.total_duration_ms,
-        avgDuration: agent.total_runs > 0
-          ? Math.round(agent.total_duration_ms / agent.total_runs)
-          : 0
-      };
-    }
+  private inspectMetrics(agent: Awaited<ReturnType<AgentService["getAgent"]>>) {
+    const a = agent!;
+    return {
+      runs: a.total_runs,
+      tasks: a.total_tasks,
+      errors: a.total_errors,
+      tokens: a.total_tokens,
+      duration: a.total_duration_ms,
+      avgDuration: a.total_runs > 0 ? Math.round(a.total_duration_ms / a.total_runs) : 0,
+    };
+  }
 
-    if (target === 'all' || target === 'tools') {
-      // Tool usage
-      result.tools = recentEvents
-        .filter(e => e.type === 'tool.called')
-        .map((e: MarionetteEvent) => ({
-          tool: e.summary,
-          timestamp: e.ts,
-          status: e.status
-        }));
-    }
-
-    return result;
+  private inspectTools(events: MarionetteEvent[]) {
+    return events
+      .filter(e => e.type === 'tool.called')
+      .map(e => ({ tool: e.summary, timestamp: e.ts, status: e.status }));
   }
 
   /**

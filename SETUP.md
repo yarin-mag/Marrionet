@@ -7,7 +7,7 @@ One-command installation for the complete Marionette monitoring system.
 ```bash
 git clone https://github.com/your-org/marionette.git
 cd marionette
-./install.sh
+./setup.sh
 ```
 
 This will:
@@ -26,8 +26,8 @@ This will:
 - **Function**: Intercepts Claude CLI, captures conversations
 - **Command**: `claude` → automatically uses wrapper
 
-### 2. Backend Server (backend/)
-- **Port**: 8080
+### 2. Backend Server (apps/server/)
+- **Port**: 8787
 - **Function**: WebSocket server, event storage, API
 - **Auto-start**: Yes (via systemd or pm2)
 
@@ -66,10 +66,10 @@ cd marionette
 
 ```bash
 # Make installer executable
-chmod +x install.sh
+chmod +x setup.sh
 
 # Run installation
-./install.sh
+./setup.sh
 ```
 
 The installer will:
@@ -118,7 +118,7 @@ Open dashboard at `http://localhost:3000` and verify:
 ### Development Mode (No Background Services)
 
 ```bash
-./install.sh --dev
+./setup.sh --dev
 ```
 
 This installs the wrapper and builds components, but doesn't start background services. You'll manually start components when needed.
@@ -126,7 +126,7 @@ This installs the wrapper and builds components, but doesn't start background se
 ### Production Mode (Systemd Services)
 
 ```bash
-sudo ./install.sh --production
+sudo ./setup.sh --production
 ```
 
 This installs everything as system services that start on boot.
@@ -134,13 +134,13 @@ This installs everything as system services that start on boot.
 ### Custom Backend URL
 
 ```bash
-BACKEND_URL=ws://your-server:8080 ./install.sh
+BACKEND_URL=ws://your-server:8787 ./setup.sh
 ```
 
 ### Skip Database Setup
 
 ```bash
-./install.sh --no-db
+./setup.sh --no-db
 ```
 
 ## Manual Installation
@@ -198,7 +198,7 @@ Create `.env` files:
 
 **backend/.env:**
 ```bash
-PORT=8080
+PORT=8787
 DATABASE_URL=postgresql://user:pass@localhost:5432/marionette
 # OR for SQLite:
 # DATABASE_URL=sqlite:../db/marionette.db
@@ -206,12 +206,12 @@ DATABASE_URL=postgresql://user:pass@localhost:5432/marionette
 
 **web/.env:**
 ```bash
-VITE_API_URL=http://localhost:8080
+VITE_API_URL=http://localhost:8787
 ```
 
 **scripts/.env:**
 ```bash
-MARIONETTE_BACKEND_URL=ws://localhost:8080
+MARIONETTE_BACKEND_URL=ws://localhost:8787
 ```
 
 ### 6. Set Up MCP Servers
@@ -271,7 +271,7 @@ cd mcp
 
 ```bash
 # Run uninstall script
-./uninstall.sh
+./unsetup.sh
 
 # Or manually:
 npm unlink claude-wrapper  # Remove wrapper
@@ -314,7 +314,7 @@ cd scripts && npm link
 tail -f backend/logs/error.log
 
 # Check port is free
-lsof -i :8080
+lsof -i :8787
 
 # Try different port
 PORT=8081 npm run dev
@@ -360,8 +360,8 @@ cat ~/.config/claude/mcp.json
 
 ```
 marionette/
-├── install.sh           # Main installer
-├── uninstall.sh         # Uninstaller
+├── setup.sh           # Main installer
+├── unsetup.sh         # Uninstaller
 ├── update.sh            # Updater
 ├── status.sh            # Check service status
 ├── SETUP.md             # This file

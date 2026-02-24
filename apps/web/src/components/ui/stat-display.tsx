@@ -3,14 +3,11 @@ import { type LucideIcon } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 const variantStyles = {
-  default: "border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800",
-  success:
-    "border-success/20 bg-[hsl(var(--success-light))] dark:border-success/30 dark:bg-success/10",
-  warning:
-    "border-warning/20 bg-[hsl(var(--warning-light))] dark:border-warning/30 dark:bg-warning/10",
-  error:
-    "border-error/20 bg-[hsl(var(--error-light))] dark:border-error/30 dark:bg-error/10",
-  info: "border-info/20 bg-[hsl(var(--info-light))] dark:border-info/30 dark:bg-info/10",
+  default: "border-border bg-muted/40",
+  success: "border-[hsl(var(--success)/0.2)] bg-[hsl(var(--success-light))]",
+  warning: "border-[hsl(var(--warning)/0.2)] bg-[hsl(var(--warning-light))]",
+  error: "border-[hsl(var(--error)/0.2)] bg-[hsl(var(--error-light))]",
+  info: "border-[hsl(var(--info)/0.2)] bg-[hsl(var(--info-light))]",
 };
 
 export interface StatDisplayProps {
@@ -58,7 +55,7 @@ export function StatDisplay({
       {!Icon && (
         <div className="text-xs font-medium text-muted-foreground mb-1">{label}</div>
       )}
-      <div className="text-lg font-semibold">{value}</div>
+      <div className="text-lg font-semibold text-foreground">{value}</div>
     </div>
   );
 }

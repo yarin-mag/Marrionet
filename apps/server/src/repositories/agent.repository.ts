@@ -1,17 +1,38 @@
 import type { MarionetteEvent, AgentSnapshot, AgentStatus } from "@marionette/shared";
 import { BaseRepository } from "./base.repository.js";
 
-/**
- * Repository for agent-related database operations
- * Handles all CRUD operations for the agents table
- */
+/** Raw database row shape returned by agent queries */
+interface DbAgentRow {
+  agent_id: string;
+  agent_name: string | null;
+  status: string;
+  current_run_id: string | null;
+  current_task: string | null;
+  last_activity: string | null;
+  terminal: string | null;
+  cwd: string | null;
+  total_runs: number;
+  total_tasks: number;
+  total_errors: number;
+  total_tokens: string;
+  total_duration_ms: string;
+  session_start: string | null;
+  session_runs: number;
+  session_errors: number;
+  session_tokens: string;
+  metadata: string | null;
+}
+
+/** Wrapper events may carry terminal/cwd as top-level fields */
+type WrapperEvent = MarionetteEvent & { terminal?: string; cwd?: string };
+
 export class AgentRepository extends BaseRepository {
   /**
    * Upsert agent for a new session (resets session counters)
    */
   async upsertForNewSession(event: MarionetteEvent): Promise<void> {
     const metadata = event.agent_metadata;
-    const raw = event as any; // wrapper sends terminal/cwd as top-level fields
+    const raw = event as WrapperEvent;
 
     await this.query(
       `INSERT INTO agents (
@@ -46,7 +67,7 @@ export class AgentRepository extends BaseRepository {
    */
   async upsertForExistingSession(event: MarionetteEvent): Promise<void> {
     const metadata = event.agent_metadata;
-    const raw = event as any; // wrapper sends terminal/cwd as top-level fields
+    const raw = event as WrapperEvent;
 
     await this.query(
       `INSERT INTO agents (
@@ -76,7 +97,7 @@ export class AgentRepository extends BaseRepository {
    * Find an agent by ID
    */
   async findById(agentId: string): Promise<AgentSnapshot | null> {
-    const row = await this.queryOne<any>(
+    const row = await this.queryOne<DbAgentRow>(
       "SELECT * FROM agents WHERE agent_id = $1",
       [agentId]
     );
@@ -91,7 +112,7 @@ export class AgentRepository extends BaseRepository {
       ? "SELECT * FROM agents WHERE status = $1 ORDER BY last_activity DESC"
       : "SELECT * FROM agents ORDER BY last_activity DESC";
 
-    const rows = await this.query<any>(sql, statusFilter ? [statusFilter] : []);
+    const rows = await this.query<DbAgentRow>(sql, statusFilter ? [statusFilter] : []);
     return rows.map((row) => this.mapToSnapshot(row));
   }
 
@@ -123,7 +144,7 @@ export class AgentRepository extends BaseRepository {
     terminal: string,
     cwd: string
   ): Promise<AgentSnapshot | null> {
-    const row = await this.queryOne<any>(
+    const row = await this.queryOne<DbAgentRow>(
       "SELECT * FROM agents WHERE terminal = $1 AND cwd = $2",
       [terminal, cwd]
     );
@@ -134,7 +155,7 @@ export class AgentRepository extends BaseRepository {
    * Find agent by terminal only
    */
   async findByTerminal(terminal: string): Promise<AgentSnapshot | null> {
-    const row = await this.queryOne<any>(
+    const row = await this.queryOne<DbAgentRow>(
       "SELECT * FROM agents WHERE terminal = $1",
       [terminal]
     );
@@ -145,7 +166,7 @@ export class AgentRepository extends BaseRepository {
    * Find agent by cwd only
    */
   async findByCwd(cwd: string): Promise<AgentSnapshot | null> {
-    const row = await this.queryOne<any>(
+    const row = await this.queryOne<DbAgentRow>(
       "SELECT * FROM agents WHERE cwd = $1",
       [cwd]
     );
@@ -156,7 +177,7 @@ export class AgentRepository extends BaseRepository {
    * Find most recent agent
    */
   async findMostRecent(): Promise<AgentSnapshot | null> {
-    const row = await this.queryOne<any>(
+    const row = await this.queryOne<DbAgentRow>(
       "SELECT * FROM agents ORDER BY last_activity DESC LIMIT 1"
     );
     return row ? this.mapToSnapshot(row) : null;
@@ -167,67 +188,25 @@ export class AgentRepository extends BaseRepository {
    * IMPORTANT: Only updates the most recently active agent to prevent
    * status changes from affecting all Claude processes in the same directory
    */
-  async updateByTerminalAndCwd(
-    terminal: string,
-    cwd: string,
-    status: AgentStatus
-  ): Promise<number> {
+  async updateByTerminalAndCwd(terminal: string, cwd: string, status: AgentStatus): Promise<number> {
     const result = await this.query(
-      `UPDATE agents
-       SET status = $1, last_activity = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-       WHERE agent_id = (
-         SELECT agent_id
-         FROM agents
-         WHERE terminal = $2 AND cwd = $3
-           AND status NOT IN ('finished', 'disconnected')
-         ORDER BY last_activity DESC
-         LIMIT 1
-       )
-       RETURNING agent_id`,
+      this.buildActiveAgentUpdateSql("terminal = $2 AND cwd = $3"),
       [status, terminal, cwd]
     );
     return result.length;
   }
 
-  /**
-   * Update agent by terminal only
-   * IMPORTANT: Only updates the most recently active agent
-   */
   async updateByTerminal(terminal: string, status: AgentStatus): Promise<number> {
     const result = await this.query(
-      `UPDATE agents
-       SET status = $1, last_activity = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-       WHERE agent_id = (
-         SELECT agent_id
-         FROM agents
-         WHERE terminal = $2
-           AND status NOT IN ('finished', 'disconnected')
-         ORDER BY last_activity DESC
-         LIMIT 1
-       )
-       RETURNING agent_id`,
+      this.buildActiveAgentUpdateSql("terminal = $2"),
       [status, terminal]
     );
     return result.length;
   }
 
-  /**
-   * Update agent by cwd only
-   * IMPORTANT: Only updates the most recently active agent
-   */
   async updateByCwd(cwd: string, status: AgentStatus): Promise<number> {
     const result = await this.query(
-      `UPDATE agents
-       SET status = $1, last_activity = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-       WHERE agent_id = (
-         SELECT agent_id
-         FROM agents
-         WHERE cwd = $2
-           AND status NOT IN ('finished', 'disconnected')
-         ORDER BY last_activity DESC
-         LIMIT 1
-       )
-       RETURNING agent_id`,
+      this.buildActiveAgentUpdateSql("cwd = $2"),
       [status, cwd]
     );
     return result.length;
@@ -303,11 +282,22 @@ export class AgentRepository extends BaseRepository {
   }
 
   /**
+   * Delete a single agent by ID
+   */
+  async deleteById(agentId: string): Promise<number> {
+    const result = await this.query(
+      "DELETE FROM agents WHERE agent_id = $1 RETURNING agent_id",
+      [agentId]
+    );
+    return result.length;
+  }
+
+  /**
    * Update agent metadata
    */
   async updateMetadata(
     agentId: string,
-    metadata: Record<string, any>
+    metadata: Record<string, unknown>
   ): Promise<void> {
     await this.query(
       "UPDATE agents SET metadata = $1, updated_at = CURRENT_TIMESTAMP WHERE agent_id = $2",
@@ -366,7 +356,20 @@ export class AgentRepository extends BaseRepository {
   /**
    * Map database row to AgentSnapshot
    */
-  private mapToSnapshot(row: any): AgentSnapshot {
+  private buildActiveAgentUpdateSql(whereClause: string): string {
+    return `UPDATE agents
+       SET status = $1, last_activity = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+       WHERE agent_id = (
+         SELECT agent_id FROM agents
+         WHERE ${whereClause}
+           AND status NOT IN ('finished', 'disconnected')
+         ORDER BY last_activity DESC
+         LIMIT 1
+       )
+       RETURNING agent_id`;
+  }
+
+  private mapToSnapshot(row: DbAgentRow): AgentSnapshot {
     return {
       agent_id: row.agent_id,
       agent_name: row.agent_name,
@@ -389,7 +392,7 @@ export class AgentRepository extends BaseRepository {
       session_runs: row.session_runs ?? 0,
       session_errors: row.session_errors ?? 0,
       session_tokens: parseInt(row.session_tokens ?? "0", 10),
-      metadata: row.metadata,
+      metadata: this.safeParse(row.metadata),
     };
   }
 }

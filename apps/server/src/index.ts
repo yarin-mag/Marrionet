@@ -31,20 +31,12 @@ async function main() {
   const wsService = new WebSocketService(server);
   wsService.start();
 
-  // Initialize services for messaging
-  const agentServiceForMessaging = new AgentService();
+  // Initialize shared service instances
+  const agentService = new AgentService();
   const eventService = new EventService();
   const messageRepository = new MessageRepository();
-  const commandService = new CommandService(
-    agentServiceForMessaging,
-    eventService,
-    messageRepository
-  );
-  const messageService = new MessageService(
-    messageRepository,
-    wsService,
-    commandService
-  );
+  const commandService = new CommandService(agentService, eventService, messageRepository);
+  const messageService = new MessageService(messageRepository, wsService, commandService);
 
   // Mount API routes with services injected
   app.use("/api", createApiRoutes(wsService, messageService));
@@ -53,7 +45,6 @@ async function main() {
   mountErrorHandler(app);
 
   // Start background task: periodically mark idle agents
-  const agentService = new AgentService();
   setInterval(async () => {
     try {
       const marked = await agentService.markIdleAgents();

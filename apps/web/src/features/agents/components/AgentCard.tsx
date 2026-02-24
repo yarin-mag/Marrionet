@@ -36,7 +36,8 @@ export const AgentCard = memo(function AgentCard({ agent, onClick }: AgentCardPr
         "min-w-[300px] border-l-4 transition-all",
         statusConfig.border,
         statusConfig.bg,
-        isDisconnected && "opacity-60 grayscale"
+        agent.status === "working" && "border-l-glow-working",
+        isDisconnected && "opacity-60 grayscale transition-[opacity,filter] duration-500"
       )}
     >
       <CardHeader className="pb-4">

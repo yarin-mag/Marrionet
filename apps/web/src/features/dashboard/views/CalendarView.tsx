@@ -1,12 +1,15 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { Calendar, dateFnsLocalizer, Event } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay } from "date-fns";
 import { enUS } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
 import { calendarService, type AgentSession } from "../../../services/calendar.service";
+import { usePersonalTasks } from "../hooks/usePersonalTasks";
+import { PersonalTaskModal } from "../components/PersonalTaskModal";
+import type { PersonalTask } from "../../../services/personal-tasks.service";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../components/ui/card";
 import { Badge } from "../../../components/ui/badge";
-import { formatTime, formatTokens, cn } from "../../../lib/utils";
+import { formatTokens } from "../../../lib/utils";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "./calendar.css";
 
@@ -23,10 +26,19 @@ const localizer = dateFnsLocalizer({
   locales,
 });
 
-// Calendar event type
+// Calendar event type — either an agent session or a personal task
 interface CalendarEvent extends Event {
-  session: AgentSession;
+  type: "agent" | "personal";
+  session?: AgentSession;
+  personalTask?: PersonalTask;
 }
+
+// Personal task color — lime green, visually distinct from all agent colors
+const PERSONAL_TASK_COLOR = {
+  bg: "#84cc16",
+  text: "#1a2e05",
+  border: "#65a30d",
+};
 
 // Agent color mapping (consistent colors per agent)
 const AGENT_COLORS = [
@@ -45,6 +57,13 @@ function getAgentColor(agentId: string): (typeof AGENT_COLORS)[0] {
   return AGENT_COLORS[hash % AGENT_COLORS.length];
 }
 
+interface TaskModalState {
+  open: boolean;
+  initialStart?: Date;
+  initialEnd?: Date;
+  task?: PersonalTask;
+}
+
 interface CalendarViewProps {
   onSessionClick?: (session: AgentSession) => void;
 }
@@ -52,6 +71,8 @@ interface CalendarViewProps {
 export function CalendarView({ onSessionClick }: CalendarViewProps) {
   const [date, setDate] = useState(new Date());
   const [view, setView] = useState<"month" | "week" | "day">("week");
+  const [taskModal, setTaskModal] = useState<TaskModalState>({ open: false });
+  const modalJustClosed = useRef(false);
 
   // Calculate date range based on current view
   const dateRange = useMemo(() => {
@@ -78,23 +99,44 @@ export function CalendarView({ onSessionClick }: CalendarViewProps) {
   const { data: sessions = [], isLoading } = useQuery({
     queryKey: ["calendar-sessions", dateRange.start.toISOString(), dateRange.end.toISOString()],
     queryFn: () => calendarService.getAgentSessions(dateRange.start, dateRange.end),
-    staleTime: 30000, // 30 seconds
+    staleTime: 30000,
   });
 
-  // Transform sessions to calendar events
-  const events: CalendarEvent[] = useMemo(() => {
-    return sessions.map((session) => ({
+  // Fetch personal tasks for the current date range
+  const { data: personalTasks = [] } = usePersonalTasks(dateRange.start, dateRange.end);
+
+  // Merge agent sessions and personal tasks into calendar events
+  const events: CalendarEvent[] = useMemo(() => [
+    ...sessions.map((session) => ({
+      type: "agent" as const,
       title: session.agentName,
       start: session.startTime,
       end: session.endTime,
       resource: session,
       session,
-    }));
-  }, [sessions]);
+    })),
+    ...personalTasks.map((task) => ({
+      type: "personal" as const,
+      title: task.title,
+      start: new Date(task.start_time),
+      end: new Date(task.end_time),
+      personalTask: task,
+    })),
+  ], [sessions, personalTasks]);
 
-  // Custom event style
+  // Custom event style — lime dashed for personal tasks, hashed color for agent sessions
   const eventStyleGetter = useCallback((event: CalendarEvent) => {
-    const colors = getAgentColor(event.session.agentId);
+    if (event.type === "personal") {
+      return {
+        style: {
+          backgroundColor: PERSONAL_TASK_COLOR.bg,
+          color: PERSONAL_TASK_COLOR.text,
+          border: `2px dashed ${PERSONAL_TASK_COLOR.border}`,
+          borderRadius: "6px",
+        },
+      };
+    }
+    const colors = getAgentColor(event.session!.agentId);
     return {
       style: {
         backgroundColor: colors.bg,
@@ -107,11 +149,20 @@ export function CalendarView({ onSessionClick }: CalendarViewProps) {
 
   // Custom event component
   const EventComponent = ({ event }: { event: CalendarEvent }) => {
-    const session = event.session;
+    if (event.type === "personal") {
+      return (
+        <div className="px-1 py-0.5 text-xs overflow-hidden">
+          <div className="font-semibold truncate">📝 {event.personalTask!.title}</div>
+          {event.personalTask!.description && (
+            <div className="truncate opacity-80">{event.personalTask!.description}</div>
+          )}
+        </div>
+      );
+    }
+    const session = event.session!;
     const duration = Math.round(
       (session.endTime.getTime() - session.startTime.getTime()) / 1000 / 60
     );
-
     return (
       <div className="px-1 py-0.5 text-xs overflow-hidden">
         <div className="font-semibold truncate">{session.agentName}</div>
@@ -121,13 +172,36 @@ export function CalendarView({ onSessionClick }: CalendarViewProps) {
     );
   };
 
-  // Handle event selection
+  // Handle event clicks — open session detail or personal task edit modal
   const handleSelectEvent = useCallback(
     (event: CalendarEvent) => {
-      onSessionClick?.(event.session);
+      if (event.type === "personal") {
+        setTaskModal({ open: true, task: event.personalTask });
+      } else {
+        onSessionClick?.(event.session!);
+      }
     },
     [onSessionClick]
   );
+
+  const handleModalClose = useCallback(() => {
+    setTaskModal({ open: false });
+  }, []);
+
+  // If any Radix dialog overlay is present when a pointerdown hits the calendar,
+  // it means a modal is about to close via outside-click — suppress the slot selection.
+  const handleCalendarPointerDown = useCallback(() => {
+    if (document.querySelector("[data-radix-dialog-overlay]")) {
+      modalJustClosed.current = true;
+      setTimeout(() => { modalJustClosed.current = false; }, 300);
+    }
+  }, []);
+
+  // Handle empty slot click — open create modal pre-filled with clicked time
+  const handleSelectSlot = useCallback(({ start, end }: { start: Date; end: Date }) => {
+    if (modalJustClosed.current) return;
+    setTaskModal({ open: true, initialStart: start, initialEnd: end });
+  }, []);
 
   if (isLoading) {
     return (
@@ -148,17 +222,27 @@ export function CalendarView({ onSessionClick }: CalendarViewProps) {
             <div>
               <CardTitle>Agent Work Calendar</CardTitle>
               <CardDescription>
-                Israeli Time (Asia/Jerusalem) • {sessions.length} sessions found
+                Israeli Time (Asia/Jerusalem) • {sessions.length} sessions
+                {personalTasks.length > 0 && ` • ${personalTasks.length} personal task${personalTasks.length !== 1 ? "s" : ""}`}
               </CardDescription>
             </div>
-            <Badge variant="outline" className="text-xs">
-              🇮🇱 GMT+2/+3
-            </Badge>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span
+                  className="inline-block w-3 h-3 rounded-sm border-2 border-dashed"
+                  style={{ backgroundColor: PERSONAL_TASK_COLOR.bg, borderColor: PERSONAL_TASK_COLOR.border }}
+                />
+                Click empty slot to add task
+              </div>
+              <Badge variant="outline" className="text-xs">
+                🇮🇱 GMT+2/+3
+              </Badge>
+            </div>
           </div>
         </CardHeader>
       </Card>
 
-      {/* Legend */}
+      {/* Agent Legend */}
       {sessions.length > 0 && (
         <Card>
           <CardContent className="pt-6">
@@ -187,7 +271,7 @@ export function CalendarView({ onSessionClick }: CalendarViewProps) {
       {/* Calendar */}
       <Card>
         <CardContent className="pt-6">
-          <div className="h-[700px]">
+          <div className="h-[700px]" onPointerDownCapture={handleCalendarPointerDown}>
             <Calendar
               localizer={localizer}
               events={events}
@@ -203,6 +287,8 @@ export function CalendarView({ onSessionClick }: CalendarViewProps) {
                 event: EventComponent,
               }}
               onSelectEvent={handleSelectEvent}
+              selectable
+              onSelectSlot={handleSelectSlot}
               views={["month", "week", "day"]}
               step={30}
               showMultiDayTimes
@@ -253,6 +339,15 @@ export function CalendarView({ onSessionClick }: CalendarViewProps) {
           </CardContent>
         </Card>
       )}
+
+      {/* Personal Task Modal */}
+      <PersonalTaskModal
+        open={taskModal.open}
+        onClose={handleModalClose}
+        initialStart={taskModal.initialStart}
+        initialEnd={taskModal.initialEnd}
+        task={taskModal.task}
+      />
     </div>
   );
 }

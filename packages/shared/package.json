@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsc -w",
     "build": "tsc -p tsconfig.json",
-    "lint": "echo \"(lint placeholder)\""
+    "lint": "eslint \"src/**/*.ts\""
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

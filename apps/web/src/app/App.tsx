@@ -5,16 +5,19 @@ import { queryClient } from "../lib/query-client";
 import { ThemeProvider } from "../features/theme/contexts/ThemeContext";
 import { MissionControl } from "../features/dashboard/components/MissionControl";
 import { PreferencesPage } from "../features/settings/pages/PreferencesPage";
+import { ErrorBoundary } from "../components/ui/error-boundary";
 
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<MissionControl />} />
-            <Route path="/preferences" element={<PreferencesPage />} />
-          </Routes>
+          <ErrorBoundary>
+            <Routes>
+              <Route path="/" element={<ErrorBoundary><MissionControl /></ErrorBoundary>} />
+              <Route path="/preferences" element={<ErrorBoundary><PreferencesPage /></ErrorBoundary>} />
+            </Routes>
+          </ErrorBoundary>
         </BrowserRouter>
       </ThemeProvider>
       <ReactQueryDevtools initialIsOpen={false} />

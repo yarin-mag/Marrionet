@@ -51,9 +51,8 @@ export function useAgentMessaging(agentId: string): UseAgentMessagingReturn {
       const data = await response.json();
       setMessages(agentId, data.messages || []);
       hasLoadedHistory.current = true;
-    } catch (err: any) {
-      console.error('Failed to load history:', err);
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load history');
     }
   }, [agentId, setMessages]);
 
@@ -91,9 +90,8 @@ export function useAgentMessaging(agentId: string): UseAgentMessagingReturn {
         // Set typing indicator
         setTyping(agentId, true);
         setTimeout(() => setTyping(agentId, false), 3000);
-      } catch (err: any) {
-        console.error('Failed to send message:', err);
-        setError(err.message);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to send message');
       } finally {
         setIsSending(false);
       }

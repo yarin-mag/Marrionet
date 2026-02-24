@@ -42,7 +42,7 @@ SQLite is more than enough for Marionette:
 
 ## Installation Process
 
-### What `./install.sh` Does
+### What `./setup.sh` Does
 
 ```bash
 [6/10] Setting Up Database...
@@ -400,4 +400,4 @@ VACUUM;
 - ✅ Better for production/scale
 - 🌐 Network-accessible
 
-**For new users:** SQLite works perfectly. Just run `./install.sh` and the database is automatically set up and ready!
+**For new users:** SQLite works perfectly. Just run `./setup.sh` and the database is automatically set up and ready!

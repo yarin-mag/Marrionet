@@ -37,13 +37,25 @@ export const useAgentsStore = create<AgentsStore>()(
       viewMode: "grid",
 
       // Actions
-      setAgents: (agents) => set({ agents }),
+      setAgents: (agents) =>
+        set((state) => ({
+          agents,
+          // Keep selectedAgent in sync with the latest snapshot
+          selectedAgent: state.selectedAgent
+            ? (agents.find((a) => a.agent_id === state.selectedAgent!.agent_id) ?? state.selectedAgent)
+            : null,
+        })),
 
       updateAgent: (agentId, updates) =>
         set((state) => ({
           agents: state.agents.map((agent) =>
             agent.agent_id === agentId ? { ...agent, ...updates } : agent
           ),
+          // Keep selectedAgent in sync for individual updates too
+          selectedAgent:
+            state.selectedAgent?.agent_id === agentId
+              ? { ...state.selectedAgent, ...updates }
+              : state.selectedAgent,
         })),
 
       removeAgent: (agentId) =>

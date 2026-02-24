@@ -1,27 +1,20 @@
 import { Router } from "express";
+import type { WebSocketService } from "../services/websocket.service.js";
 import { AgentsController } from "../controllers/agents.controller.js";
 import { asyncHandler } from "../middleware/async-handler.js";
 
-/**
- * Create agents routes with WebSocket service injection
- */
-export function createAgentsRoutes(wsService?: any) {
+export function createAgentsRoutes(wsService?: WebSocketService) {
   const router = Router();
   const controller = new AgentsController();
 
-  // Inject WebSocket service
-  if (wsService) {
-    controller.setWebSocketService(wsService);
-  }
+  if (wsService) controller.setWebSocketService(wsService);
 
-  // Agent CRUD endpoints
   router.get("/", asyncHandler(controller.getAgents.bind(controller)));
   router.get("/:agentId", asyncHandler(controller.getAgent.bind(controller)));
   router.patch("/:agentId", asyncHandler(controller.updateMetadata.bind(controller)));
-
-  // Agent cleanup endpoints
   router.delete("/crashed", asyncHandler(controller.deleteCrashed.bind(controller)));
   router.delete("/all", asyncHandler(controller.deleteAll.bind(controller)));
+  router.delete("/:agentId", asyncHandler(controller.deleteAgent.bind(controller)));
 
   return router;
 }

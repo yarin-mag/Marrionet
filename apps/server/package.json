@@ -7,7 +7,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "migrate": "tsx src/migrate.ts",
-    "lint": "echo \"(lint placeholder)\""
+    "lint": "eslint \"src/**/*.ts\""
   },
   "dependencies": {
     "@marionette/shared": "workspace:*",

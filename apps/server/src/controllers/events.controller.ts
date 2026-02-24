@@ -1,25 +1,17 @@
 import type { Request, Response } from "express";
 import type { MarionetteEvent } from "@marionette/shared";
+import type { WebSocketService } from "../services/websocket.service.js";
 import { EventService } from "../services/event.service.js";
 import { config } from "../config/index.js";
 
-/**
- * Controller for event-related endpoints
- */
 export class EventsController {
   private service = new EventService();
-  private wsService: any; // WebSocketService instance (set after initialization)
+  private wsService: WebSocketService | undefined;
 
-  /**
-   * Set WebSocket service for broadcasting
-   */
-  setWebSocketService(wsService: any): void {
+  setWebSocketService(wsService: WebSocketService): void {
     this.wsService = wsService;
   }
 
-  /**
-   * GET /api/events - Query events (by run_id, agent_id, type)
-   */
   async getEvents(req: Request, res: Response) {
     const runId = req.query.run_id?.toString();
     const agentId = req.query.agent_id?.toString();
@@ -29,19 +21,10 @@ export class EventsController {
       config.api.maxEventsLimit
     );
 
-    const events = await this.service.queryEvents({
-      runId,
-      agentId,
-      type,
-      limit,
-    });
-
+    const events = await this.service.queryEvents({ runId, agentId, type, limit });
     res.json(events.reverse());
   }
 
-  /**
-   * GET /api/agents/:agentId/events - Get agent's event stream
-   */
   async getAgentEvents(req: Request, res: Response) {
     const limit = Math.min(
       Number(req.query.limit ?? config.api.defaultEventsLimit),
@@ -52,21 +35,14 @@ export class EventsController {
     res.json(events.reverse());
   }
 
-  /**
-   * POST /api/events - Ingest telemetry events
-   */
   async ingestEvents(req: Request, res: Response) {
     const body = req.body;
     const batch: MarionetteEvent[] = Array.isArray(body) ? body : [body];
 
     const processed = await this.service.processBatch(batch);
 
-    // Broadcast events to dashboard
     if (this.wsService && processed.length > 0) {
-      this.wsService.broadcastToDashboard({
-        type: "events",
-        data: processed,
-      });
+      this.wsService.broadcastToDashboard({ type: "events", data: processed });
     }
 
     res.json({ ok: true, received: processed.length });

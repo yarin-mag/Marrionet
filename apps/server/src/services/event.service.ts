@@ -2,6 +2,7 @@ import type { MarionetteEvent } from "@marionette/shared";
 import { EventRepository } from "../repositories/event.repository.js";
 import { AgentService } from "./agent.service.js";
 import { queryOne } from "../db.js";
+import { logger } from "../utils/logger.js";
 
 /**
  * Service class for event processing
@@ -62,7 +63,7 @@ export class EventService {
         processed.push(event);
       } catch (err) {
         // Log error but continue processing other events
-        console.error("Error processing event:", err);
+        logger.error("Error processing event:", err);
       }
     }
 

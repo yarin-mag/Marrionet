@@ -48,7 +48,7 @@ export class AgentService {
     const duration = event.duration_ms ?? 0;
 
     // Increment event-type specific counters
-    if (event.type === "run.started") {
+    if (event.type === "run.started" || event.type === "run.ended") {
       await this.repository.incrementRuns(event.agent_id);
     } else if (event.type === "task.started") {
       await this.repository.incrementTasks(event.agent_id);
@@ -106,6 +106,13 @@ export class AgentService {
   }
 
   /**
+   * Delete a single agent by ID
+   */
+  async deleteAgent(agentId: string): Promise<number> {
+    return this.repository.deleteById(agentId);
+  }
+
+  /**
    * Update agent metadata (custom name, labels, jira tickets)
    */
   async updateMetadata(
@@ -123,7 +130,6 @@ export class AgentService {
 
     const metadata = agent.metadata || {};
 
-    // Apply updates
     if (updates.custom_name !== undefined) {
       metadata.custom_name = updates.custom_name;
     }
@@ -206,7 +212,6 @@ export class AgentService {
     cwd?: string,
     status: AgentStatus = "working"
   ): Promise<string> {
-    // Generate agent ID from terminal + cwd
     const agentId = `agent_${terminal}_${cwd}`
       .replace(/[^a-zA-Z0-9_]/g, "_")
       .substring(0, 50);
