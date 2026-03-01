@@ -7,7 +7,7 @@ import { apiService } from "../../../services/api.service";
 import { QUERY_KEYS } from "../../../lib/constants";
 import type { AgentSession } from "../../../services/calendar.service";
 
-type ViewMode = "grid" | "calendar" | "table" | "kanban" | "analytics";
+type ViewMode = "grid" | "calendar" | "table" | "kanban" | "analytics" | "compare";
 
 const WS_POLL_INTERVAL_MS = 2_000;
 
@@ -48,7 +48,7 @@ export function useMissionControlState() {
     try {
       await apiService.deleteAllAgents();
     } catch {
-      alert("Failed to clear agents");
+      console.error("Failed to clear agents");
     } finally {
       setClearing(false);
     }

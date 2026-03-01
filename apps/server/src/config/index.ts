@@ -1,3 +1,6 @@
+import { homedir } from "os";
+import { join } from "path";
+
 /**
  * Centralized configuration management
  * All environment variables and constants in one place
@@ -6,16 +9,16 @@ export const config = {
   port: parseInt(process.env.PORT || "8787", 10),
 
   database: {
-    url: process.env.DATABASE_URL || "sqlite:db/marionette.db",
-    max: 20,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
+    // In dev: set DATABASE_URL=sqlite:db/marionette.db in .env (see .env.example)
+    // In production: defaults to ~/.marionette/marionette.db (works on all platforms)
+    url: process.env.DATABASE_URL || `sqlite:${join(homedir(), ".marionette", "marionette.db")}`,
   },
 
   websocket: {
     heartbeatIntervalMs: 30000,
     idleCheckIntervalMs: 30000,
     idleTimeoutMinutes: 2,
+    disconnectTimeoutMinutes: 10,
   },
 
   hooks: {
@@ -26,10 +29,5 @@ export const config = {
     maxEventsLimit: 2000,
     defaultEventsLimit: 500,
     jsonBodyLimit: "2mb",
-  },
-
-  jira: {
-    ticketRegex: /\b([A-Z][A-Z0-9]+-\d+)\b/g,
-    ticketFormat: /^[A-Z][A-Z0-9]+-\d+$/,
   },
 } as const;

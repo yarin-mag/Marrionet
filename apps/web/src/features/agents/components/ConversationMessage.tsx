@@ -1,40 +1,23 @@
 import { Bot, User } from 'lucide-react';
-import type { ConversationTurn } from '@marionette/shared';
-import { cn } from '../../../lib/utils';
+import { cn, formatTime, formatTokens } from '../../../lib/utils';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import type { EnrichedConversationTurn } from '../hooks/useAgentConversation';
 
-interface ConversationMessageProps {
-  turn: ConversationTurn;
+function formatCost(usd: number): string {
+  if (!isFinite(usd) || usd === 0) return "$0.00";
+  if (usd < 0.001) return `$${usd.toFixed(6)}`;
+  if (usd < 0.01) return `$${usd.toFixed(4)}`;
+  return `$${usd.toFixed(3)}`;
 }
 
-function formatTime(timestamp: string): string {
-  const date = new Date(timestamp);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffSecs = Math.floor(diffMs / 1000);
-  const diffMins = Math.floor(diffSecs / 60);
-  const diffHours = Math.floor(diffMins / 60);
-
-  if (diffSecs < 60) {
-    return 'just now';
-  } else if (diffMins < 60) {
-    return `${diffMins}m ago`;
-  } else if (diffHours < 24) {
-    return `${diffHours}h ago`;
-  } else {
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  }
+interface ConversationMessageProps {
+  turn: EnrichedConversationTurn;
 }
 
 export function ConversationMessage({ turn }: ConversationMessageProps) {
-  const isUser = turn.role === 'user';
+  const isUser = turn.role === "user";
   const isFromWeb = turn.source === 'web';
 
   return (
@@ -70,7 +53,7 @@ export function ConversationMessage({ turn }: ConversationMessageProps) {
           <div className={cn('prose prose-sm max-w-none', isUser ? 'prose-invert' : 'dark:prose-invert')}>
             <ReactMarkdown
               components={{
-                code({ node, className, children }) {
+                code({ className, children }) {
                   const match = /language-(\w+)/.exec(className || '');
                   const language = match ? match[1] : '';
 
@@ -128,6 +111,17 @@ export function ConversationMessage({ turn }: ConversationMessageProps) {
           >
             {formatTime(turn.timestamp)}
           </div>
+
+          {/* Token annotation — assistant messages only */}
+          {!isUser && turn.tokens && (
+            <div className="text-xs text-muted-foreground/60 mt-1 flex items-center gap-1.5 flex-wrap">
+              <span>↑ {formatTokens(turn.tokens.input_tokens ?? 0)}</span>
+              <span className="opacity-40">·</span>
+              <span>↓ {formatTokens(turn.tokens.output_tokens ?? 0)}</span>
+              <span className="opacity-40">·</span>
+              <span className="text-emerald-500/70">{formatCost(turn.tokens.cost_usd ?? 0)}</span>
+            </div>
+          )}
         </div>
       </div>
 

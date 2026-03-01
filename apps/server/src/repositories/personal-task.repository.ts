@@ -44,7 +44,17 @@ export class PersonalTaskRepository extends BaseRepository {
        VALUES ($1, $2, $3, $4, $5)`,
       [task.id, task.title, task.description ?? null, task.start_time, task.end_time]
     );
-    return (await this.findById(task.id))!;
+    // Return the row directly — all field values are known, so no second DB round-trip needed.
+    const now = new Date().toISOString();
+    return {
+      id: task.id,
+      title: task.title,
+      description: task.description ?? null,
+      start_time: task.start_time,
+      end_time: task.end_time,
+      created_at: now,
+      updated_at: now,
+    };
   }
 
   async update(

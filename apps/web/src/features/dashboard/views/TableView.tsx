@@ -3,14 +3,15 @@ import { useState, useEffect } from "react";
 import type { AgentSnapshot, AgentStatus } from "@marionette/shared";
 import { Badge } from "../../../components/ui/badge";
 import { EmptyState } from "../../../components/ui/empty-state";
-import { formatTime, formatTokens, extractFolder, cn } from "../../../lib/utils";
+import { formatTime, formatTokens, extractFolder, estimateSessionCost, cn } from "../../../lib/utils";
 import { STATUS_COLORS } from "../../../lib/status-config";
 import {
   FolderOpen, Inbox, ArrowUp, ArrowDown, ChevronsUpDown,
-  Zap, PlayCircle, AlertTriangle, ChevronDown,
+  Zap, PlayCircle, AlertTriangle, ChevronDown, Check, DollarSign,
 } from "lucide-react";
 import { useTableState, type SortKey } from "../hooks/useTableState";
 import { TableToolbar } from "../components/TableToolbar";
+import { useAgentsStore } from "../../agents/stores/agents.store";
 
 interface TableViewProps {
   agents: AgentSnapshot[];
@@ -56,10 +57,10 @@ function GroupHeaderRow({ label, count, status, isCollapsed, onToggle }: {
   isCollapsed: boolean;
   onToggle: () => void;
 }) {
-  const variant = status ? STATUS_COLORS[status].badge : "secondary";
+  const variant = (status ? STATUS_COLORS[status] ?? STATUS_COLORS.disconnected : STATUS_COLORS.disconnected).badge;
   return (
     <tr onClick={onToggle} className="cursor-pointer select-none hover:bg-muted/60 transition-colors">
-      <td colSpan={8} className="px-6 py-2 bg-muted/40 border-y border-border/60">
+      <td colSpan={10} className="px-6 py-2 bg-muted/40 border-y border-border/60">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -87,6 +88,7 @@ export function TableView({ agents, onAgentClick }: TableViewProps) {
     groups, totalVisible,
   } = useTableState(agents);
 
+  const { compareSet, toggleCompare } = useAgentsStore();
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   const toggleGroup = (label: string) =>
@@ -132,12 +134,14 @@ export function TableView({ agents, onAgentClick }: TableViewProps) {
           <table className="w-full">
             <thead className="bg-muted/30 border-b border-border sticky top-0 z-10">
               <tr>
-                <SortTh label="Agent" sortKey="name" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="pl-6 text-left" />
+                <th className="pl-4 py-3.5 w-8" />
+                <SortTh label="Agent" sortKey="name" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="pl-3 text-left" />
                 <SortTh label="Status" sortKey="status" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="text-left" />
                 <th className="px-4 py-3.5 text-left text-label text-muted-foreground">Task</th>
                 <th className="px-4 py-3.5 text-left text-label text-muted-foreground">Location</th>
                 <SortTh label="Runs" sortKey="runs" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="text-right" />
                 <SortTh label="Tokens" sortKey="tokens" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="text-right" />
+                <SortTh label="Cost" sortKey="cost" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="text-right" />
                 <SortTh label="Errors" sortKey="errors" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="text-right" />
                 <SortTh label="Last Active" sortKey="last_activity" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} className="pr-6 text-right" />
               </tr>
@@ -155,9 +159,11 @@ export function TableView({ agents, onAgentClick }: TableViewProps) {
                     />
                   )}
                   {!collapsedGroups.has(group.label) && group.agents.map((agent, idx) => {
-                    const statusConfig = STATUS_COLORS[agent.status];
+                    const statusConfig = STATUS_COLORS[agent.status] ?? STATUS_COLORS.disconnected;
                     const customName = agent.metadata?.custom_name as string | undefined;
                     const displayName = customName || agent.agent_name || extractFolder(agent.cwd);
+                    const isCompared = compareSet.includes(agent.agent_id);
+                    const estCost = estimateSessionCost(agent.session_tokens);
 
                     return (
                       <tr
@@ -169,8 +175,28 @@ export function TableView({ agents, onAgentClick }: TableViewProps) {
                           idx % 2 === 0 ? "bg-background" : "bg-muted/20"
                         )}
                       >
+                        {/* Compare checkbox */}
+                        <td
+                          className="pl-4 py-3.5 w-8"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleCompare(agent.agent_id);
+                          }}
+                        >
+                          <div
+                            className={cn(
+                              "h-4 w-4 rounded border flex items-center justify-center cursor-pointer",
+                              isCompared
+                                ? "bg-primary border-primary"
+                                : "bg-background border-border hover:border-primary"
+                            )}
+                          >
+                            {isCompared && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
+                          </div>
+                        </td>
+
                         {/* Agent name */}
-                        <td className="pl-6 pr-4 py-3.5">
+                        <td className="pl-3 pr-4 py-3.5">
                           <div className="flex items-center gap-3">
                             <div className="shrink-0 p-1.5 rounded-lg bg-primary/10 border border-primary/20">
                               <FolderOpen className="h-3.5 w-3.5 text-primary" />
@@ -229,6 +255,21 @@ export function TableView({ agents, onAgentClick }: TableViewProps) {
                             <Zap className="h-3.5 w-3.5 text-amber-400" />
                             {formatTokens(agent.session_tokens)}
                           </span>
+                        </td>
+
+                        {/* Cost */}
+                        <td
+                          className="px-4 py-3.5 text-right"
+                          title="Estimated using Sonnet 4 pricing. See agent details for exact cost."
+                        >
+                          {agent.session_tokens > 0 ? (
+                            <span className="flex items-center justify-end gap-1 text-sm text-muted-foreground tabular-nums">
+                              <DollarSign className="h-3 w-3 text-muted-foreground/50" />
+                              ~{estCost.toFixed(2)}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground/40">—</span>
+                          )}
                         </td>
 
                         {/* Errors */}

@@ -10,14 +10,14 @@ export class StatusController {
   /**
    * GET /health - Health check
    */
-  async healthCheck(req: Request, res: Response) {
+  async healthCheck(_req: Request, res: Response) {
     res.json({ ok: true });
   }
 
   /**
    * GET /api/status - Live system status
    */
-  async getStatus(req: Request, res: Response) {
+  async getStatus(_req: Request, res: Response) {
     const agents = await this.service.getAgents();
 
     const working = agents.filter((a) => a.status === "working").length;

@@ -55,7 +55,7 @@ export function useAgents(statusFilter?: AgentStatus) {
 
   // WebSocket for real-time updates
   useEffect(() => {
-    let debounceTimer: ReturnType<typeof setTimeout>;
+    let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
     const unsubscribe = wsService.subscribe((message) => {
       if (message.type === "agents_updated") {

@@ -3,29 +3,15 @@ export type MarionetteEventType =
   | "agent.started" | "agent.ended"
   | "agent.heartbeat" | "agent.idle" | "agent.status"
   | "agent.disconnected"     // Agent process exited
-  | "step.started" | "step.ended"
   | "tool.called" | "tool.result"
   | "task.started" | "task.ended" | "task.blocked"
   | "log.info" | "log.warn" | "log.error"
-  | "message.sent"           // Dashboard sent message to agent
-  | "message.delivered"      // Agent received message
-  | "message.response"       // Agent sent response
   | "command.request"        // Slash command execution request
   | "command.response"       // Command result
-  | "agent.typing"           // Agent is processing (for UI)
   | "conversation.turn"      // Conversation message captured
   | "conversation.started"   // Conversation session started
   | "conversation.ended"     // Conversation session ended
-  | "agent.register"         // Agent wrapper registration
-  | "process.spawned"        // Child process spawned
-  | "process.exited"         // Child process exited
-  | "file.created"           // File created
-  | "file.modified"          // File modified
-  | "file.deleted"           // File deleted
-  | "network.request"        // HTTP request initiated
-  | "network.response"       // HTTP response received
-  | "network.error"          // HTTP request error
-  | "process.stats";         // Process performance metrics
+  | "llm.call";              // Anthropic API call — model, tokens, cost, latency
 
 export type AgentStatus =
   | "starting"
@@ -35,7 +21,8 @@ export type AgentStatus =
   | "error"
   | "finished"
   | "crashed"
-  | "disconnected"; // Claude process exited/killed
+  | "disconnected" // Claude process exited/killed
+  | "awaiting_input"; // Claude is waiting for user input/confirmation
 
 export type TaskStatus =
   | "pending"
@@ -50,6 +37,10 @@ export type TokenUsage = {
   input_tokens?: number;
   /** tokens received from the LLM (best-effort) */
   output_tokens?: number;
+  /** tokens used to create the prompt cache */
+  cache_creation_input_tokens?: number;
+  /** tokens read from the prompt cache */
+  cache_read_input_tokens?: number;
   /** total tokens if provided */
   total_tokens?: number;
   /** estimated $ cost if provided */
@@ -64,6 +55,7 @@ export type AgentMetadata = {
   cwd?: string;
   version?: string;
   capabilities?: string[];
+  source?: "cli" | "vscode" | "mcp";
 };
 
 export type MarionetteEvent = {
@@ -121,42 +113,10 @@ export type AgentSnapshot = {
   session_runs: number;
   session_errors: number;
   session_tokens: number;
+  status_since?: string;
+  source_file?: string;
   metadata?: Record<string, unknown>;
 };
-
-// ============================================
-// Interactive Messaging Types
-// ============================================
-
-export type MessageDirection = 'to_agent' | 'from_agent';
-export type MessageType = 'text' | 'command' | 'response' | 'error' | 'system';
-export type MessageStatus = 'pending' | 'delivered' | 'processing' | 'completed' | 'failed';
-
-export interface Message {
-  id: string;
-  agentId: string;
-  direction: MessageDirection;
-  messageType: MessageType;
-  content: string;
-  status: MessageStatus;
-  createdAt: string;
-  deliveredAt?: string;
-  processedAt?: string;
-  completedAt?: string;
-  metadata?: {
-    command?: string;
-    args?: Record<string, unknown>;
-    executionTimeMs?: number;
-    tokenCount?: number;
-    error?: {
-      message: string;
-      code?: string;
-      stack?: string;
-    };
-    userId?: string;
-  };
-  parentMessageId?: string;
-}
 
 export type CommandCategory = 'context' | 'debug' | 'control' | 'query';
 
@@ -201,17 +161,3 @@ export interface ConversationTurn {
   };
 }
 
-export interface ConversationSession {
-  session_id: string;
-  agent_id: string;
-  started_at: string;
-  ended_at?: string;
-  turn_count: number;
-  turns: ConversationTurn[];
-  metadata?: {
-    terminal?: string;
-    cwd?: string;
-    hostname?: string;
-    user?: string;
-  };
-}

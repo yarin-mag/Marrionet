@@ -1,5 +1,5 @@
 import Database from "better-sqlite3";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync } from "node:fs";
 import { config } from "./config/index.js";
 import { logger } from "./utils/logger.js";
 import path from "path";
@@ -7,6 +7,9 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+/** Bump this integer whenever db/schema.sql changes. */
+const CURRENT_SCHEMA_VERSION = 5;
 
 /**
  * Database client class for SQLite with transaction support
@@ -29,6 +32,9 @@ export class DatabaseClient {
         dbPath = path.resolve(__dirname, "../../..", dbPath);
       }
 
+      // Ensure the directory exists (critical for ~/.marionette/ on first run)
+      mkdirSync(path.dirname(dbPath), { recursive: true });
+
       logger.info(`Connecting to SQLite database: ${dbPath}`);
 
       this.db = new Database(dbPath);
@@ -45,10 +51,6 @@ export class DatabaseClient {
     }
   }
 
-  /**
-   * Check whether the current schema is up to date, reset and reapply if not.
-   * "Up to date" means the agents table has the agent_id column.
-   */
   private static autoMigrate(): void {
     const needsReset = !this.schemaIsCurrent();
 
@@ -62,18 +64,19 @@ export class DatabaseClient {
     }
 
     // Apply schema (CREATE TABLE IF NOT EXISTS — safe to run always)
-    const schemaPath = path.join(__dirname, "../../../db/schema.sql");
+    //   Release layout: dist/ lives beside db/ → ../db/schema.sql
+    //   Dev layout:     apps/server/dist/ → ../../../db/schema.sql (project root)
+    const releasePath = path.join(__dirname, "../db/schema.sql");
+    const devPath = path.join(__dirname, "../../../db/schema.sql");
+    const schemaPath = existsSync(releasePath) ? releasePath : devPath;
     const schema = readFileSync(schemaPath, "utf-8");
 
-    // Split on semicolons; skip blank/comment-only chunks
-    const statements = schema
-      .split(";")
-      .map((s) => s.trim())
-      .filter((s) => s.replace(/--[^\n]*/g, "").trim().length > 0);
+    // Execute the schema in one call — better-sqlite3's exec() handles
+    // multiple semicolon-delimited statements natively and is immune to
+    // semicolons inside string literals.
+    this.db.exec(schema);
 
-    for (const stmt of statements) {
-      this.db.exec(stmt);
-    }
+    this.db.pragma(`user_version = ${CURRENT_SCHEMA_VERSION}`);
 
     if (needsReset) {
       logger.info("Database schema reset and applied successfully");
@@ -83,12 +86,15 @@ export class DatabaseClient {
   }
 
   /**
-   * Returns true if the agents table already has the expected agent_id column.
+   * Returns true if the current on-disk schema matches what the code expects.
+   * Uses SQLite's built-in user_version PRAGMA — a stable integer stored in the
+   * DB header, immune to schema reformatting or comment changes.
+   * Bump CURRENT_SCHEMA_VERSION whenever db/schema.sql changes.
    */
   private static schemaIsCurrent(): boolean {
     try {
-      this.db.prepare("SELECT agent_id FROM agents LIMIT 0").get();
-      return true;
+      const ver = this.db.pragma("user_version", { simple: true }) as number;
+      return ver === CURRENT_SCHEMA_VERSION;
     } catch {
       return false;
     }
@@ -99,7 +105,7 @@ export class DatabaseClient {
    * Converts PostgreSQL-style placeholders ($1, $2) to SQLite-style (?, ?)
    */
   static async query<T = any>(sql: string, params: any[] = []): Promise<T[]> {
-    const sqliteSql = this.convertPlaceholders(sql);
+    const [sqliteSql, boundParams] = this.convertPlaceholders(sql, params);
 
     try {
       const stmt = this.db.prepare(sqliteSql);
@@ -108,11 +114,11 @@ export class DatabaseClient {
       const hasReturning = upper.includes('RETURNING');
 
       if (isSelect || hasReturning) {
-        const rows = stmt.all(...params) as T[];
+        const rows = stmt.all(...boundParams) as T[];
         (rows as any).rowCount = rows.length;
         return rows;
       } else {
-        const result = stmt.run(...params);
+        const result = stmt.run(...boundParams);
         const rows: T[] = [];
         (rows as any).rowCount = result.changes;
         return rows;
@@ -127,11 +133,11 @@ export class DatabaseClient {
    * Execute a SQL query and return the first row or null
    */
   static async queryOne<T = any>(sql: string, params: any[] = []): Promise<T | null> {
-    const sqliteSql = this.convertPlaceholders(sql);
+    const [sqliteSql, boundParams] = this.convertPlaceholders(sql, params);
 
     try {
       const stmt = this.db.prepare(sqliteSql);
-      const row = stmt.get(...params) as T | undefined;
+      const row = stmt.get(...boundParams) as T | undefined;
       return row || null;
     } catch (err) {
       logger.error(`Query error: ${sqliteSql}`, err);
@@ -143,30 +149,13 @@ export class DatabaseClient {
    * Execute an INSERT/UPDATE/DELETE query and return info
    */
   static async run(sql: string, params: any[] = []): Promise<Database.RunResult> {
-    const sqliteSql = this.convertPlaceholders(sql);
+    const [sqliteSql, boundParams] = this.convertPlaceholders(sql, params);
 
     try {
       const stmt = this.db.prepare(sqliteSql);
-      return stmt.run(...params);
+      return stmt.run(...boundParams);
     } catch (err) {
       logger.error(`Run error: ${sqliteSql}`, err);
-      throw err;
-    }
-  }
-
-  /**
-   * Execute queries within a transaction
-   */
-  static async transaction<T>(
-    callback: (db: Database.Database) => Promise<T>
-  ): Promise<T> {
-    try {
-      this.db.exec("BEGIN");
-      const result = await callback(this.db);
-      this.db.exec("COMMIT");
-      return result;
-    } catch (err) {
-      this.db.exec("ROLLBACK");
       throw err;
     }
   }
@@ -179,10 +168,17 @@ export class DatabaseClient {
   }
 
   /**
-   * Convert PostgreSQL-style placeholders ($1, $2) to SQLite-style (?, ?)
+   * Convert PostgreSQL-style placeholders ($1, $2) to SQLite-style (?, ?).
+   * Reorders the params array to match the textual order of $N references,
+   * so non-sequential usage (e.g. `$2 AND $1`) binds correctly.
    */
-  private static convertPlaceholders(sql: string): string {
-    return sql.replace(/\$(\d+)/g, () => '?');
+  private static convertPlaceholders(sql: string, params: any[]): [string, any[]] {
+    const reordered: any[] = [];
+    const converted = sql.replace(/\$(\d+)/g, (_, n) => {
+      reordered.push(params[Number(n) - 1]);
+      return '?';
+    });
+    return [converted, reordered];
   }
 
   /**
@@ -198,8 +194,3 @@ export class DatabaseClient {
 
 // Initialize on module load
 DatabaseClient.initialize();
-
-// Backward compatibility exports
-export const query = DatabaseClient.query.bind(DatabaseClient);
-export const queryOne = DatabaseClient.queryOne.bind(DatabaseClient);
-export const db = DatabaseClient.getDb();

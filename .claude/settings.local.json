@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc:*)",
+      "Bash(find:*)",
+      "Bash(tail:*)",
+      "Bash(grep:*)",
+      "Bash(pnpm --filter @marionette/file-watcher exec tsx src/index.ts --version 2>&1 || pnpm --filter @marionette/file-watcher run build 2>&1)",
+      "Bash(cd /Users/yarinmag/Documents/yarin/Marrionet/packages/file-watcher && pnpm run build 2>&1)",
+      "Bash(pnpm:*)",
+      "Bash(timeout 2 node:*)",
+      "Bash(cd /Users/yarinmag/Documents/yarin/Marrionet/packages/api-proxy && npx tsc --noEmit 2>&1)",
+      "Bash(head:*)",
+      "Bash(node_modules/.bin/tsc:*)",
+      "Bash(python3:*)",
+      "Bash(sqlite3:*)",
+      "Bash(NODE_PATH=node_modules node:*)",
+      "Bash(node:*)",
+      "Bash(curl:*)",
+      "Bash(lsof:*)",
+      "Bash(pstree -p 92000)",
+      "Bash(ps:*)",
+      "Bash(ls:*)",
+      "Bash(npx tsc:*)",
+      "Bash(../../node_modules/.bin/tsc:*)",
+      "Bash(apps/web/node_modules/.bin/tsc:*)",
+      "WebSearch",
+      "Bash(npm run:*)",
+      "Bash(npx tsx:*)"
+    ]
+  }
+}

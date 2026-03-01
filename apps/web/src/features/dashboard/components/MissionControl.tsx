@@ -1,21 +1,26 @@
-import { LayoutGrid, Table, Columns, BarChart3, Calendar as CalendarIcon } from "lucide-react";
+import { LayoutGrid, Table, Columns, BarChart3, Calendar as CalendarIcon, GitCompare } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../../components/ui/tabs";
 import { Card, CardContent } from "../../../components/ui/card";
+import { Badge } from "../../../components/ui/badge";
 import { GridView } from "../views/GridView";
 import { CalendarView } from "../views/CalendarView";
 import { TableView } from "../views/TableView";
 import { KanbanView } from "../views/KanbanView";
 import { AnalyticsView } from "../views/AnalyticsView";
+import { CompareView } from "../views/CompareView";
 import { DashboardStats } from "./DashboardStats";
 import { MissionControlHeader } from "./MissionControlHeader";
 import { AgentDetailPanel } from "../../agents/components/AgentDetailPanel";
 import { AgentDetailModal } from "../../agents/components/AgentDetailModal";
 import { SessionDetailModal } from "./SessionDetailModal";
+import { SessionDetail } from "./SessionDetail";
 import { Sheet, SheetContent } from "../../../components/ui/sheet";
 import { useUserPreferences } from "../../../hooks/use-user-preferences";
+import { useAgentNotifications } from "../../../hooks/use-agent-notifications";
 import { useMissionControlState } from "../hooks/useMissionControlState";
+import { useAgentsStore } from "../../agents/stores/agents.store";
 
-type ViewMode = "grid" | "calendar" | "table" | "kanban" | "analytics";
+type ViewMode = "grid" | "calendar" | "table" | "kanban" | "analytics" | "compare";
 
 export function MissionControl() {
   const {
@@ -39,6 +44,8 @@ export function MissionControl() {
   } = useMissionControlState();
 
   const { preferences } = useUserPreferences();
+  const { compareSet } = useAgentsStore();
+  useAgentNotifications(agents);
 
   if (loading && agents.length === 0) {
     return (
@@ -100,6 +107,15 @@ export function MissionControl() {
             <BarChart3 className="h-4 w-4" />
             Analytics
           </TabsTrigger>
+          <TabsTrigger value="compare" activeClassName="bg-gradient-to-r from-cyan-500 to-sky-600 shadow-cyan-500/30">
+            <GitCompare className="h-4 w-4" />
+            Compare
+            {compareSet.length > 0 && (
+              <Badge variant="primary" size="sm" className="ml-1">
+                {compareSet.length}
+              </Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="grid">
@@ -117,15 +133,16 @@ export function MissionControl() {
         <TabsContent value="analytics">
           <AnalyticsView agents={filteredAgents} />
         </TabsContent>
+        <TabsContent value="compare">
+          <CompareView agents={agents} onAgentClick={openPanel} />
+        </TabsContent>
       </Tabs>
 
       {preferences.agentDetailView === "sidecard" ? (
         selectedAgent && (
           <Sheet open={!!selectedAgent} onOpenChange={(open) => !open && closePanel()}>
-            <SheetContent onClick={closePanel}>
-              <div onClick={(e) => e.stopPropagation()}>
-                <AgentDetailPanel agent={selectedAgent} onClose={closePanel} hideCloseButton={true} />
-              </div>
+            <SheetContent onClick={closePanel} onClose={closePanel}>
+              <AgentDetailPanel agent={selectedAgent} onClose={closePanel} hideCloseButton={true} />
             </SheetContent>
           </Sheet>
         )
@@ -133,11 +150,21 @@ export function MissionControl() {
         <AgentDetailModal agent={selectedAgent} open={!!selectedAgent} onClose={closePanel} />
       )}
 
-      <SessionDetailModal
-        session={selectedSession}
-        open={!!selectedSession}
-        onClose={() => setSelectedSession(null)}
-      />
+      {preferences.agentDetailView === "sidecard" ? (
+        selectedSession && (
+          <Sheet open={!!selectedSession} onOpenChange={(open) => !open && setSelectedSession(null)}>
+            <SheetContent onClick={() => setSelectedSession(null)} onClose={() => setSelectedSession(null)}>
+              <SessionDetail session={selectedSession} />
+            </SheetContent>
+          </Sheet>
+        )
+      ) : (
+        <SessionDetailModal
+          session={selectedSession}
+          open={!!selectedSession}
+          onClose={() => setSelectedSession(null)}
+        />
+      )}
     </div>
   );
 }

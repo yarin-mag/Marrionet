@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.artifact }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest   # arm64 GitHub-hosted runner
+            artifact: macos-arm64
+            build_cmd: bash scripts/build-release.sh macos-arm64
+            upload_file: marionette-macos-arm64.tar.gz
+
+          - os: macos-13       # x64 GitHub-hosted runner
+            artifact: macos-x64
+            build_cmd: bash scripts/build-release.sh macos-x64
+            upload_file: marionette-macos-x64.tar.gz
+
+          - os: ubuntu-latest
+            artifact: linux-x64
+            build_cmd: bash scripts/build-release.sh linux-x64
+            upload_file: marionette-linux-x64.tar.gz
+
+          - os: windows-latest
+            artifact: windows-x64
+            build_cmd: pwsh scripts/build-release.ps1 windows-x64
+            upload_file: marionette-windows-x64.zip
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build release archive
+        run: ${{ matrix.build_cmd }}
+
+      - name: Upload release artifact
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.upload_file }}
+          generate_release_notes: true

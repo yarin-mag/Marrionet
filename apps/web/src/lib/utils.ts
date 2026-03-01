@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { DEFAULT_PRICING } from "@marionette/shared";
 
 /**
  * Merge Tailwind classes with proper override handling
@@ -46,7 +47,7 @@ export function formatTokens(tokens: number): string {
  */
 export function extractFolder(cwd?: string): string {
   if (!cwd) return "unknown";
-  const parts = cwd.split("/");
+  const parts = cwd.split(/[/\\]/);
   return parts[parts.length - 1] || "root";
 }
 
@@ -62,4 +63,31 @@ export function formatDuration(ms?: number): string {
   if (hours > 0) return `${hours}h ${minutes % 60}m`;
   if (minutes > 0) return `${minutes}m ${seconds % 60}s`;
   return `${seconds}s`;
+}
+
+/**
+ * Format token burn rate as "X/min" or "Xk/min".
+ * Returns null if not enough time has elapsed for a meaningful rate.
+ */
+export function formatBurnRate(tokens: number, elapsedMs: number): string | null {
+  if (!isFinite(elapsedMs) || !isFinite(tokens)) return null;
+  const minutes = elapsedMs / 60_000;
+  if (minutes < 0.5) return null;
+  const rate = Math.round(tokens / minutes);
+  if (!isFinite(rate) || rate < 1) return null;
+  return rate >= 1000 ? `${(rate / 1000).toFixed(1)}k/min` : `${rate}/min`;
+}
+
+/**
+ * Estimate session cost from total token count using DEFAULT_PRICING (Sonnet 4).
+ * Assumes a 65% input / 35% output split. Tilde (~) should be shown in the UI
+ * to signal this is an approximation.
+ */
+export function estimateSessionCost(sessionTokens: number): number {
+  const p = DEFAULT_PRICING;
+  return (
+    (sessionTokens * 0.65 * p.inputPerMillion +
+      sessionTokens * 0.35 * p.outputPerMillion) /
+    1_000_000
+  );
 }

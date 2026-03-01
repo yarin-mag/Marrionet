@@ -19,8 +19,13 @@ interface AgentsStore {
   closePanel: () => void;
 
   // View Preference
-  viewMode: "grid" | "calendar" | "table" | "kanban" | "analytics";
-  setViewMode: (mode: "grid" | "calendar" | "table" | "kanban" | "analytics") => void;
+  viewMode: "grid" | "calendar" | "table" | "kanban" | "analytics" | "compare";
+  setViewMode: (mode: "grid" | "calendar" | "table" | "kanban" | "analytics" | "compare") => void;
+
+  // Compare
+  compareSet: string[];
+  toggleCompare: (agentId: string) => void;
+  clearCompare: () => void;
 
   // Computed
   getFilteredAgents: () => AgentSnapshot[];
@@ -35,16 +40,22 @@ export const useAgentsStore = create<AgentsStore>()(
       hideDisconnected: false,
       selectedAgent: null,
       viewMode: "grid",
+      compareSet: [],
 
       // Actions
       setAgents: (agents) =>
-        set((state) => ({
-          agents,
-          // Keep selectedAgent in sync with the latest snapshot
-          selectedAgent: state.selectedAgent
-            ? (agents.find((a) => a.agent_id === state.selectedAgent!.agent_id) ?? state.selectedAgent)
-            : null,
-        })),
+        set((state) => {
+          const agentIds = new Set(agents.map((a) => a.agent_id));
+          return {
+            agents,
+            // Keep selectedAgent in sync with the latest snapshot
+            selectedAgent: state.selectedAgent
+              ? (agents.find((a) => a.agent_id === state.selectedAgent!.agent_id) ?? state.selectedAgent)
+              : null,
+            // Remove any compare entries that no longer exist
+            compareSet: state.compareSet.filter((id) => agentIds.has(id)),
+          };
+        }),
 
       updateAgent: (agentId, updates) =>
         set((state) => ({
@@ -61,6 +72,7 @@ export const useAgentsStore = create<AgentsStore>()(
       removeAgent: (agentId) =>
         set((state) => ({
           agents: state.agents.filter((agent) => agent.agent_id !== agentId),
+          compareSet: state.compareSet.filter((id) => id !== agentId),
         })),
 
       toggleHideDisconnected: () =>
@@ -71,6 +83,18 @@ export const useAgentsStore = create<AgentsStore>()(
       closePanel: () => set({ selectedAgent: null }),
 
       setViewMode: (mode) => set({ viewMode: mode }),
+
+      toggleCompare: (agentId) =>
+        set((state) => {
+          const next = state.compareSet.includes(agentId)
+            ? state.compareSet.filter((id) => id !== agentId)
+            : state.compareSet.length < 4
+            ? [...state.compareSet, agentId]
+            : state.compareSet;
+          return { compareSet: next };
+        }),
+
+      clearCompare: () => set({ compareSet: [] }),
 
       // Computed
       getFilteredAgents: () => {
@@ -91,6 +115,7 @@ export const useAgentsStore = create<AgentsStore>()(
       partialize: (state) => ({
         hideDisconnected: state.hideDisconnected,
         viewMode: state.viewMode,
+        compareSet: state.compareSet,
       }),
     }
   )

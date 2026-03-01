@@ -1,20 +1,26 @@
 import { WS_URL } from "../lib/constants";
+import type { AgentSnapshot } from "@marionette/shared";
 
-type WebSocketCallback = (data: any) => void;
+type WsMessage =
+  | { type: "agents_updated" }
+  | { type: "agent_update"; agent_id: string; updates: Partial<AgentSnapshot> };
+
+type WebSocketCallback = (data: WsMessage) => void;
 
 class WebSocketService {
   private ws: WebSocket | null = null;
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private listeners: Set<WebSocketCallback> = new Set();
 
   /**
    * Connect to WebSocket server
    */
   connect(): void {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      console.log("[ws] Already connected");
+    if (
+      this.ws?.readyState === WebSocket.OPEN ||
+      this.ws?.readyState === WebSocket.CONNECTING
+    ) {
       return;
     }
 
@@ -22,18 +28,15 @@ class WebSocketService {
       this.ws = new WebSocket(`${WS_URL}/stream`);
 
       this.ws.onopen = () => {
-        console.log("[ws] Connected");
-        this.reconnectAttempts = 0;
         this.reconnectDelay = 1000;
       };
 
       this.ws.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data);
-          console.log("[ws] Message:", data.type);
+          const data = JSON.parse(event.data) as WsMessage;
 
-          // Notify all listeners
-          this.listeners.forEach((callback) => callback(data));
+          // Notify all listeners (snapshot first to avoid mutation during iteration)
+          [...this.listeners].forEach((callback) => callback(data));
         } catch (error) {
           console.error("[ws] Failed to parse message:", error);
         }
@@ -44,7 +47,6 @@ class WebSocketService {
       };
 
       this.ws.onclose = () => {
-        console.log("[ws] Disconnected");
         this.attemptReconnect();
       };
     } catch (error) {
@@ -57,6 +59,10 @@ class WebSocketService {
    * Disconnect from WebSocket server
    */
   disconnect(): void {
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     if (this.ws) {
       this.ws.close();
       this.ws = null;
@@ -77,22 +83,24 @@ class WebSocketService {
   }
 
   /**
-   * Attempt to reconnect with exponential backoff
+   * Attempt to reconnect with exponential backoff (capped at 30s, no hard limit)
    */
   private attemptReconnect(): void {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error("[ws] Max reconnection attempts reached");
-      return;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
     }
-
-    this.reconnectAttempts++;
-    console.log(
-      `[ws] Reconnecting in ${this.reconnectDelay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`
-    );
-
-    setTimeout(() => {
-      this.connect();
-      this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30000);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      // Double the delay before connecting so any synchronous re-throw from connect()
+      // (the catch path) picks up the already-increased value.
+      this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30_000);
+      try {
+        this.connect();
+      } catch (error) {
+        console.error("[ws] Reconnect attempt threw:", error);
+        this.attemptReconnect(); // re-schedule
+      }
     }, this.reconnectDelay);
   }
 

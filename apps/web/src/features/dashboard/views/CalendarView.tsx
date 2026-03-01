@@ -10,11 +10,9 @@ import type { PersonalTask } from "../../../services/personal-tasks.service";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../components/ui/card";
 import { Badge } from "../../../components/ui/badge";
 import { formatTokens } from "../../../lib/utils";
+import { useUserPreferences } from "../../../hooks/use-user-preferences";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "./calendar.css";
-
-// Israeli timezone
-const ISRAELI_TIMEZONE = "Asia/Jerusalem";
 
 // Setup localizer for react-big-calendar
 const locales = { "en-US": enUS };
@@ -73,6 +71,7 @@ export function CalendarView({ onSessionClick }: CalendarViewProps) {
   const [view, setView] = useState<"month" | "week" | "day">("week");
   const [taskModal, setTaskModal] = useState<TaskModalState>({ open: false });
   const modalJustClosed = useRef(false);
+  const { preferences } = useUserPreferences();
 
   // Calculate date range based on current view
   const dateRange = useMemo(() => {
@@ -227,13 +226,15 @@ export function CalendarView({ onSessionClick }: CalendarViewProps) {
               </CardDescription>
             </div>
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span
-                  className="inline-block w-3 h-3 rounded-sm border-2 border-dashed"
-                  style={{ backgroundColor: PERSONAL_TASK_COLOR.bg, borderColor: PERSONAL_TASK_COLOR.border }}
-                />
-                Click empty slot to add task
-              </div>
+              {preferences.calendarClickToAdd && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span
+                    className="inline-block w-3 h-3 rounded-sm border-2 border-dashed"
+                    style={{ backgroundColor: PERSONAL_TASK_COLOR.bg, borderColor: PERSONAL_TASK_COLOR.border }}
+                  />
+                  Click empty slot to add task
+                </div>
+              )}
               <Badge variant="outline" className="text-xs">
                 🇮🇱 GMT+2/+3
               </Badge>
@@ -287,8 +288,8 @@ export function CalendarView({ onSessionClick }: CalendarViewProps) {
                 event: EventComponent,
               }}
               onSelectEvent={handleSelectEvent}
-              selectable
-              onSelectSlot={handleSelectSlot}
+              selectable={preferences.calendarClickToAdd}
+              onSelectSlot={preferences.calendarClickToAdd ? handleSelectSlot : undefined}
               views={["month", "week", "day"]}
               step={30}
               showMultiDayTimes

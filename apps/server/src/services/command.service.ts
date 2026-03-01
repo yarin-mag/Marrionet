@@ -1,9 +1,6 @@
 import type { CommandDefinition, CommandResponse, MarionetteEvent } from "@marionette/shared";
-
-const MESSAGE_PREVIEW_LENGTH = 200;
 import { AgentService } from "./agent.service.js";
 import { EventService } from "./event.service.js";
-import { MessageRepository } from "../repositories/message.repository.js";
 import { logger } from "../utils/logger.js";
 
 /**
@@ -16,7 +13,6 @@ export class CommandService {
   constructor(
     private agentService: AgentService,
     private eventService: EventService,
-    private messageRepository: MessageRepository
   ) {
     this.registerBuiltInCommands();
   }
@@ -45,25 +41,6 @@ export class CommandService {
       this.handleStatus.bind(this)
     );
 
-    // /history - Message history
-    this.register(
-      {
-        name: '/history',
-        description: 'Get message history with the agent',
-        category: 'query',
-        args: [
-          {
-            name: 'limit',
-            type: 'number',
-            required: false,
-            default: 20,
-            description: 'Number of messages to retrieve'
-          }
-        ]
-      },
-      this.handleHistory.bind(this)
-    );
-
     // /inspect - Deep inspection
     this.register(
       {
@@ -75,7 +52,7 @@ export class CommandService {
             name: 'target',
             type: 'string',
             required: false,
-            description: 'Specific target to inspect (e.g., "thinking", "context", "metrics")'
+            description: 'Specific target to inspect (e.g., "context", "metrics")'
           }
         ]
       },
@@ -112,7 +89,6 @@ export class CommandService {
     const startTime = Date.now();
 
     try {
-      // Check if command exists
       const cmd = this.commands.get(command);
       if (!cmd) {
         return {
@@ -122,7 +98,6 @@ export class CommandService {
         };
       }
 
-      // Get handler
       const handler = this.handlers.get(command);
       if (!handler) {
         return {
@@ -132,7 +107,6 @@ export class CommandService {
         };
       }
 
-      // Execute command
       logger.info(`Executing command ${command} for agent ${agentId}`);
       const data = await handler(agentId, args);
 
@@ -162,9 +136,6 @@ export class CommandService {
   // Command Handlers
   // ============================================
 
-  /**
-   * /context - Get agent context
-   */
   private async handleContext(agentId: string): Promise<any> {
     const agent = await this.agentService.getAgent(agentId);
     if (!agent) {
@@ -200,16 +171,11 @@ export class CommandService {
     };
   }
 
-  /**
-   * /status - Agent health metrics
-   */
   private async handleStatus(agentId: string): Promise<any> {
     const agent = await this.agentService.getAgent(agentId);
     if (!agent) {
       throw new Error(`Agent not found: ${agentId}`);
     }
-
-    const unreadCount = await this.messageRepository.getUnreadCount(agentId);
 
     return {
       health: {
@@ -227,36 +193,10 @@ export class CommandService {
         totalDurationMs: agent.total_duration_ms,
         sessionRuns: agent.session_runs,
         sessionErrors: agent.session_errors
-      },
-      messaging: {
-        unreadMessages: unreadCount
       }
     };
   }
 
-  /**
-   * /history - Message history
-   */
-  private async handleHistory(agentId: string, args?: { limit?: number }): Promise<any> {
-    const limit = args?.limit || 20;
-    const messages = await this.messageRepository.getHistory(agentId, limit);
-
-    return {
-      messages: messages.map(msg => ({
-        id: msg.id,
-        direction: msg.direction,
-        type: msg.messageType,
-        content: msg.content.substring(0, MESSAGE_PREVIEW_LENGTH),
-        status: msg.status,
-        timestamp: msg.createdAt
-      })),
-      total: messages.length
-    };
-  }
-
-  /**
-   * /inspect - Deep inspection of agent state
-   */
   private async handleInspect(agentId: string, args?: { target?: string }): Promise<Record<string, unknown>> {
     const agent = await this.agentService.getAgent(agentId);
     if (!agent) throw new Error(`Agent not found: ${agentId}`);
@@ -268,17 +208,10 @@ export class CommandService {
       agentId,
       target,
       timestamp: new Date().toISOString(),
-      ...(target === 'all' || target === 'thinking'  ? { thinking:  this.inspectThinking(recentEvents) } : {}),
       ...(target === 'all' || target === 'context'   ? { context:   this.inspectContext(agent) }         : {}),
       ...(target === 'all' || target === 'metrics'   ? { metrics:   this.inspectMetrics(agent) }         : {}),
       ...(target === 'all' || target === 'tools'     ? { tools:     this.inspectTools(recentEvents) }    : {}),
     };
-  }
-
-  private inspectThinking(events: MarionetteEvent[]) {
-    return events
-      .filter(e => e.type === 'step.started' || e.type === 'step.ended')
-      .map(e => ({ type: e.type, summary: e.summary, timestamp: e.ts, duration: e.duration_ms }));
   }
 
   private inspectContext(agent: Awaited<ReturnType<AgentService["getAgent"]>>) {
@@ -313,9 +246,6 @@ export class CommandService {
       .map(e => ({ tool: e.summary, timestamp: e.ts, status: e.status }));
   }
 
-  /**
-   * /help - List commands
-   */
   private async handleHelp(): Promise<any> {
     const commands = this.getCommands();
 
