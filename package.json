@@ -8,13 +8,18 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently -n backend,frontend -c blue,green \"pnpm --filter marionette-server dev\" \"pnpm --filter marionette-web dev\"",
-    "dev:backend": "pnpm --filter marionette-server dev",
-    "dev:frontend": "pnpm --filter marionette-web dev",
+    "dev": "concurrently -n server,web,proxy,watcher -c blue,green,magenta,cyan \"pnpm --filter marionette-server dev\" \"pnpm --filter marionette-web dev\" \"pnpm --filter @marionette/api-proxy dev\" \"pnpm --filter @marionette/file-watcher dev\"",
+    "dev:server": "pnpm --filter marionette-server dev",
+    "dev:web": "pnpm --filter marionette-web dev",
+    "dev:proxy": "pnpm --filter @marionette/api-proxy dev",
+    "dev:watcher": "pnpm --filter @marionette/file-watcher dev",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
     "format": "pnpm -r format"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["better-sqlite3", "esbuild"]
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.18.0",

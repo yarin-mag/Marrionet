@@ -1,10 +1,10 @@
 import { WebSocket } from "ws";
-import type { MarionetteEvent } from "@marionette/shared";
+import type { MarionetteEvent, AgentMetadata } from "@marionette/shared";
 import { config } from "../config/index.js";
 import { logger } from "../utils/logger.js";
 import { withRetry } from "../utils/retry.js";
 
-const RECONNECT_INTERVAL_MS = 30_000;
+const RECONNECT_INTERVAL_MS = 5_000;
 
 /**
  * WebSocket service for MCP server
@@ -18,7 +18,7 @@ export class WebSocketService {
   constructor(
     private agentId: string,
     private runId: string,
-    private agentMetadata: any
+    private agentMetadata: AgentMetadata
   ) {}
 
   /**
@@ -45,11 +45,6 @@ export class WebSocketService {
       this.ws.on("open", () => {
         logger.info("WebSocket connected");
         this.clearRetry();
-        this.emit({
-          type: "agent.started",
-          summary: "Agent connected",
-          status: "working",
-        });
       });
 
       this.ws.on("error", (err) => {
@@ -73,7 +68,7 @@ export class WebSocketService {
   }
 
   private scheduleRetry(): void {
-    if (this.stopRetry) return; // already scheduled
+    if (this.intentionalClose || this.stopRetry) return;
     this.stopRetry = withRetry(() => {
       logger.info("Retrying WebSocket connection...");
       this.attemptConnection();
@@ -112,12 +107,10 @@ export class WebSocketService {
   close(): void {
     this.intentionalClose = true;
     this.clearRetry();
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.emit({
-        type: "agent.disconnected",
-        summary: "Agent disconnected",
-        status: "disconnected",
-      });
+    if (this.ws && (
+      this.ws.readyState === WebSocket.OPEN ||
+      this.ws.readyState === WebSocket.CONNECTING
+    )) {
       this.ws.close();
     }
   }

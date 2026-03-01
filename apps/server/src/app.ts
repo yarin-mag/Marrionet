@@ -11,12 +11,22 @@ import { config } from "./config/index.js";
 export function createApp() {
   const app = express();
 
-  // Middleware
-  app.use(cors());
+  // Middleware — restrict CORS to local origins only (localhost / 127.0.0.1)
+  app.use(cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (curl, Electron shell, same-origin) and
+      // any localhost / 127.0.0.1 origin on any port.
+      if (!origin || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("CORS: origin not allowed"));
+      }
+    },
+  }));
   app.use(express.json({ limit: config.api.jsonBodyLimit }));
 
   // Request logging middleware
-  app.use((req, res, next) => {
+  app.use((req, _res, next) => {
     logger.debug(`${req.method} ${req.path}`);
     next();
   });

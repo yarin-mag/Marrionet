@@ -1,8 +1,18 @@
-import type { MarionetteEvent } from "@marionette/shared";
+import type { MarionetteEvent, AgentStatus } from "@marionette/shared";
 import { EventRepository } from "../repositories/event.repository.js";
 import { AgentService } from "./agent.service.js";
-import { queryOne } from "../db.js";
+import { DatabaseClient } from "../db.js";
 import { logger } from "../utils/logger.js";
+
+const VALID_AGENT_STATUSES = new Set<string>([
+  'starting', 'idle', 'working', 'blocked', 'error',
+  'finished', 'crashed', 'disconnected', 'awaiting_input'
+]);
+
+export interface BatchResult {
+  processed: MarionetteEvent[];
+  failed: Array<{ event: MarionetteEvent; error: string }>;
+}
 
 /**
  * Service class for event processing
@@ -10,64 +20,95 @@ import { logger } from "../utils/logger.js";
  */
 export class EventService {
   private repository = new EventRepository();
-  private agentService = new AgentService();
+  private agentService: AgentService;
+
+  constructor(agentService?: AgentService) {
+    this.agentService = agentService ?? new AgentService();
+  }
 
   /**
    * Process a single event
    */
   async processEvent(event: MarionetteEvent): Promise<void> {
     if (!event.type) {
-      return; // Skip events with no type
-    }
-
-    // Agent lifecycle events (agent.started, agent.heartbeat, etc.) don't carry
-    // run_id / summary — only enforce those checks for non-lifecycle events
-    const isLifecycleEvent = event.type.startsWith('agent.');
-    if (!isLifecycleEvent && (!event.run_id || !event.summary)) {
+      logger.debug("Skipping event: missing type", { event });
       return;
     }
 
-    // Ensure timestamp is set
-    event.ts = event.ts ?? new Date().toISOString();
+    // Agent lifecycle events (agent.started, agent.heartbeat, conversation.started, etc.)
+    // may not carry run_id / summary — only enforce those checks for non-lifecycle events
+    const isLifecycleEvent =
+      event.type.startsWith('agent.') || event.type === 'conversation.started';
+    if (!isLifecycleEvent && (!event.run_id || !event.summary)) {
+      logger.debug("Skipping non-lifecycle event: missing run_id or summary", {
+        type: event.type,
+        run_id: event.run_id,
+        has_summary: !!event.summary,
+      });
+      return;
+    }
 
-    // Handle blocked agent resuming
-    if (event.agent_id) {
-      const currentAgent = await queryOne<any>(
-        "SELECT status FROM agents WHERE agent_id = $1",
-        [event.agent_id]
-      );
+    // Ensure timestamp is set (use a local var — do not mutate the caller's object)
+    const ts = event.ts ?? new Date().toISOString();
 
-      if (currentAgent?.status === "blocked" && !event.status) {
-        event.status = "working";
-      }
+    // Handle blocked agent resuming — build a shadow event rather than mutating the caller's object
+    const effectiveEvent = await this.resolveEffectiveEvent(event);
 
+    if (effectiveEvent.agent_id) {
       // Update agent records
-      await this.agentService.upsertAgent(event);
-      await this.agentService.updateActivity(event.agent_id, event.status as any);
-      await this.agentService.incrementCounters(event);
+      // Only pass status if it's a valid AgentStatus — task events use "completed" etc. which aren't
+      const agentStatus = effectiveEvent.status && VALID_AGENT_STATUSES.has(effectiveEvent.status)
+        ? effectiveEvent.status as AgentStatus
+        : undefined;
+      await this.agentService.upsertAgent(effectiveEvent);
+      await this.agentService.updateActivity(effectiveEvent.agent_id, agentStatus);
+      await this.agentService.incrementCounters(effectiveEvent);
     }
 
     // Insert event into database
-    await this.repository.insert(event);
+    await this.repository.insert({ ...effectiveEvent, ts });
+  }
+
+  /**
+   * Resolve the effective event, auto-resuming a blocked agent when a new event arrives
+   * without an explicit status. Extracted from processEvent to avoid an inline async IIFE.
+   */
+  private async resolveEffectiveEvent(event: MarionetteEvent): Promise<MarionetteEvent> {
+    if (!event.agent_id) return event;
+    const agent = await DatabaseClient.queryOne<{ status: string }>(
+      "SELECT status FROM agents WHERE agent_id = $1",
+      [event.agent_id]
+    );
+    return agent?.status === "blocked" && !event.status
+      ? { ...event, status: "working" as AgentStatus }
+      : event;
   }
 
   /**
    * Process a batch of events
    */
-  async processBatch(events: MarionetteEvent[]): Promise<MarionetteEvent[]> {
-    const processed: MarionetteEvent[] = [];
+  async processBatch(events: MarionetteEvent[]): Promise<BatchResult> {
+    const sorted = [...events].sort((a, b) => {
+      const ta = a.ts ?? "";
+      const tb = b.ts ?? "";
+      return ta < tb ? -1 : ta > tb ? 1 : 0;
+    });
 
-    for (const event of events) {
+    const processed: MarionetteEvent[] = [];
+    const failed: Array<{ event: MarionetteEvent; error: string }> = [];
+
+    for (const event of sorted) {
       try {
         await this.processEvent(event);
         processed.push(event);
       } catch (err) {
-        // Log error but continue processing other events
-        logger.error("Error processing event:", err);
+        const error = err instanceof Error ? err.message : String(err);
+        logger.error("Error processing event:", { err, type: event.type, run_id: event.run_id });
+        failed.push({ event, error });
       }
     }
 
-    return processed;
+    return { processed, failed };
   }
 
   /**

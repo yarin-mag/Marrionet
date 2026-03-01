@@ -1,4 +1,5 @@
 import { DatabaseClient } from "../db.js";
+import { logger } from "../utils/logger.js";
 
 /**
  * Base repository class with common database operations
@@ -11,14 +12,25 @@ export abstract class BaseRepository {
   /**
    * Safely stringify an object to JSON, returning null for null/undefined
    */
-  protected safeStringify(obj: any): string | null {
-    return obj ? JSON.stringify(obj) : null;
+  protected safeStringify(obj: unknown): string | null {
+    if (obj == null) return null;
+    try {
+      return JSON.stringify(obj);
+    } catch {
+      return null;
+    }
   }
 
   /**
-   * Safely parse a JSON string, returning undefined for null/undefined/empty strings
+   * Safely parse a JSON string, returning undefined for null/undefined/empty strings or parse errors
    */
   protected safeParse<T>(str: string | null): T | undefined {
-    return str ? JSON.parse(str) : undefined;
+    if (!str) return undefined;
+    try {
+      return JSON.parse(str) as T;
+    } catch (err) {
+      logger.warn("safeParse: failed to parse stored JSON", { str: str.slice(0, 80), err });
+      return undefined;
+    }
   }
 }

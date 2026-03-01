@@ -1,60 +1,71 @@
-import { WebSocketServer } from "ws";
-import type { WebSocket } from "ws";
+import { WebSocketServer, WebSocket } from "ws";
 import type { Server } from "http";
 import type { IncomingMessage } from "http";
 import type { Socket } from "net";
 import type { MarionetteEvent } from "@marionette/shared";
 import { EventService } from "./event.service.js";
-import { query } from "../db.js";
 import { logger } from "../utils/logger.js";
 
-type WsClientType = "dashboard" | "agent" | "web_client";
-type ExtendedWebSocket = WebSocket & { _type?: WsClientType };
+type WsClientType = "dashboard" | "agent";
+type ExtendedWebSocket = WebSocket & { _type?: WsClientType; isAlive?: boolean };
 
 interface WsIncomingMessage {
   type: string;
   agent_id?: string;
-  session_id?: string;
-  message?: Record<string, unknown>;
-  content?: string;
 }
 
-type ConversationTurn = Record<string, unknown>;
-
 export class WebSocketService {
+  private httpServer: Server;
   private wss: WebSocketServer;
-  private agentConnections = new Map<string, WebSocket>();
-  private webClients = new Set<WebSocket>();
-  private conversations = new Map<string, ConversationTurn[]>();
-  private agentSessions = new Map<string, string>();
-  private eventService = new EventService();
+  private eventService: EventService;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
-  constructor(private httpServer: Server) {
+  constructor(httpServer: Server, eventService?: EventService) {
+    this.httpServer = httpServer;
+    this.eventService = eventService ?? new EventService();
     this.wss = new WebSocketServer({ noServer: true });
     this.setupUpgradeHandler();
   }
 
   start(): void {
     logger.info("WebSocket service started");
+    this.startHeartbeat();
+  }
+
+  private startHeartbeat(): void {
+    const INTERVAL_MS = 30_000;
+    this.heartbeatTimer = setInterval(() => {
+      this.wss.clients.forEach((client) => {
+        const ws = client as ExtendedWebSocket;
+        if (ws.isAlive === false) {
+          ws.terminate();
+          return;
+        }
+        ws.isAlive = false;
+        ws.ping();
+      });
+    }, INTERVAL_MS);
   }
 
   private setupUpgradeHandler(): void {
     this.httpServer.on("upgrade", (request: IncomingMessage, socket: Socket, head: Buffer) => {
-      const pathname = new URL(request.url!, `http://${request.headers.host}`).pathname;
+      try {
+        const pathname = new URL(request.url!, `http://${request.headers.host}`).pathname;
 
-      if (pathname === "/stream") {
-        this.wss.handleUpgrade(request, socket, head, (ws) => {
-          this.handleDashboardConnection(ws as ExtendedWebSocket);
-        });
-      } else if (pathname === "/agent-stream") {
-        this.wss.handleUpgrade(request, socket, head, (ws) => {
-          this.handleAgentConnection(ws as ExtendedWebSocket);
-        });
-      } else if (pathname === "/client-stream") {
-        this.wss.handleUpgrade(request, socket, head, (ws) => {
-          this.handleWebClientConnection(ws as ExtendedWebSocket);
-        });
-      } else {
+        if (pathname === "/stream") {
+          this.wss.handleUpgrade(request, socket, head, (ws) => {
+            this.handleDashboardConnection(ws as ExtendedWebSocket);
+          });
+        } else if (pathname === "/agent-stream") {
+          this.wss.handleUpgrade(request, socket, head, (ws) => {
+            this.handleAgentConnection(ws as ExtendedWebSocket);
+          });
+        } else {
+          socket.destroy();
+        }
+      } catch (err) {
+        logger.error("WebSocket upgrade error:", err);
+        socket.write("HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
         socket.destroy();
       }
     });
@@ -63,67 +74,60 @@ export class WebSocketService {
   private handleDashboardConnection(ws: ExtendedWebSocket): void {
     logger.info("Dashboard client connected");
     ws._type = "dashboard";
+    ws.isAlive = true;
+    ws.on("pong", () => { ws.isAlive = true; });
     ws.send(JSON.stringify({ type: "hello", data: { ok: true } }));
+    // Immediately sync agent state so the dashboard doesn't miss agents that
+    // connected before the WS subscription was established.
+    ws.send(JSON.stringify({ type: "agents_updated" }));
   }
 
   private handleAgentConnection(ws: ExtendedWebSocket): void {
-    logger.info("Agent wrapper connected");
+    logger.info("Agent connected");
     ws._type = "agent";
+    ws.isAlive = true;
+    ws.on("pong", () => { ws.isAlive = true; });
     let agentId: string | null = null;
 
     ws.on("message", async (data: Buffer) => {
       try {
-        const event = JSON.parse(data.toString()) as WsIncomingMessage;
-
-        if (event.type === "agent.register") {
-          agentId = this.registerAgent(ws, event);
-        } else if (
-          event.type === "conversation.turn" ||
-          event.type === "conversation.started" ||
-          event.type === "conversation.ended"
-        ) {
-          this.handleConversationEvent(event);
-        } else {
-          await this.processAgentEvent(event);
+        const raw: unknown = JSON.parse(data.toString());
+        if (!raw || typeof raw !== "object" || typeof (raw as any).type !== "string") {
+          logger.warn("[ws] ignoring message with missing or non-string 'type' field");
+          return;
         }
+        const event = raw as WsIncomingMessage;
+        await this.processAgentEvent(event);
 
         if (event.agent_id && !agentId) {
-          agentId = event.agent_id;
-          this.agentConnections.set(agentId, ws);
-          logger.info(`Agent ${agentId} identified`);
+          if (!/^agent_[a-f0-9]{16}$/.test(event.agent_id)) {
+            logger.warn(`[ws] rejected unrecognised agent_id format: ${event.agent_id}`);
+          } else {
+            agentId = event.agent_id;
+            logger.info(`Agent ${agentId} identified`);
+          }
         }
       } catch (err) {
         logger.error("Agent WebSocket message error:", err);
       }
     });
 
-    ws.on("close", async () => this.handleAgentDisconnect(agentId));
+    ws.on("close", () => {
+      this.handleAgentDisconnect(agentId).catch((err) =>
+        logger.error("[ws] agent disconnect handler error:", err)
+      );
+    });
     ws.on("error", (err: Error) => logger.error("Agent WebSocket error:", err));
   }
 
-  private registerAgent(ws: ExtendedWebSocket, event: WsIncomingMessage): string | null {
-    const agentId = event.agent_id ?? null;
-    const sessionId = event.session_id ?? null;
-
-    if (agentId) {
-      this.agentConnections.set(agentId, ws);
-      logger.info(`Agent ${agentId} registered (session: ${sessionId})`);
-    }
-    if (sessionId) this.conversations.set(sessionId, []);
-    if (agentId && sessionId) this.agentSessions.set(agentId, sessionId);
-
-    return agentId;
-  }
-
-  private handleConversationEvent(event: WsIncomingMessage): void {
-    if (event.type === "conversation.turn" && event.message) {
-      this.storeConversationTurn(event.session_id!, event.message);
-    }
-    this.broadcastToWebClients(event as unknown);
-  }
-
   private async processAgentEvent(event: WsIncomingMessage): Promise<void> {
-    await this.eventService.processEvent(event as MarionetteEvent);
+    try {
+      await this.eventService.processEvent(event as MarionetteEvent);
+    } catch (err) {
+      logger.error("Event processing error — event NOT broadcast:", err);
+      return;
+    }
+
     this.broadcastToDashboard({ type: "events", data: [event] });
 
     if (event.type === "agent.started" || event.type === "agent.disconnected") {
@@ -133,128 +137,26 @@ export class WebSocketService {
 
   private async handleAgentDisconnect(agentId: string | null): Promise<void> {
     if (!agentId) return;
-
-    logger.info(`Agent ${agentId} disconnected`);
-    this.agentConnections.delete(agentId);
-
-    await query(
-      "UPDATE agents SET status = 'disconnected', updated_at = CURRENT_TIMESTAMP WHERE agent_id = $1",
-      [agentId]
-    );
-
-    this.broadcastToDashboard({ type: "agents_updated" });
+    logger.info(`Agent WebSocket ${agentId} closed (MCP connection dropped)`);
   }
 
   broadcastToDashboard(data: unknown): void {
-    const msg = JSON.stringify(data);
+    let msg: string;
+    try {
+      msg = JSON.stringify(data);
+    } catch (err) {
+      logger.error("Failed to serialize broadcast message — skipping:", err);
+      return;
+    }
     this.wss.clients.forEach((client) => {
       const extended = client as ExtendedWebSocket;
-      if (extended._type === "dashboard" && client.readyState === 1) {
-        client.send(msg);
-      }
-    });
-  }
-
-  private handleWebClientConnection(ws: ExtendedWebSocket): void {
-    logger.info("Web client connected");
-    ws._type = "web_client";
-    this.webClients.add(ws);
-
-    ws.send(JSON.stringify({
-      type: "connected",
-      timestamp: new Date().toISOString(),
-    }));
-
-    ws.on("message", async (data: Buffer) => {
-      try {
-        const event = JSON.parse(data.toString()) as WsIncomingMessage;
-
-        if (event.type === "message.send" && event.agent_id && event.content) {
-          this.sendMessageToAgent(event.agent_id, event.content);
+      if (extended._type === "dashboard" && client.readyState === WebSocket.OPEN) {
+        try {
+          client.send(msg);
+        } catch (err) {
+          logger.error("Failed to send message to dashboard client:", err);
         }
-
-        if (event.type === "conversation.request" && event.session_id) {
-          const history = this.getConversation(event.session_id);
-          ws.send(JSON.stringify({
-            type: "conversation.history",
-            session_id: event.session_id,
-            turns: history,
-          }));
-        }
-      } catch (err) {
-        logger.error("Web client WebSocket message error:", err);
       }
-    });
-
-    ws.on("close", () => {
-      logger.info("Web client disconnected");
-      this.webClients.delete(ws);
-    });
-
-    ws.on("error", (err: Error) => logger.error("Web client WebSocket error:", err));
-  }
-
-  sendMessageToAgent(agentId: string, content: string): void {
-    const ws = this.agentConnections.get(agentId);
-    if (ws && ws.readyState === 1) {
-      ws.send(JSON.stringify({
-        type: "message.send",
-        agent_id: agentId,
-        content,
-      }));
-      logger.info(`Sent message to agent ${agentId}`);
-    } else {
-      logger.error(`Agent ${agentId} not connected or not ready`);
-    }
-  }
-
-  broadcastToWebClients(event: unknown): void {
-    const message = JSON.stringify(event);
-    this.webClients.forEach((client) => {
-      if (client.readyState === 1) {
-        client.send(message);
-      }
-    });
-  }
-
-  storeConversationTurn(sessionId: string, turn: ConversationTurn): void {
-    if (!this.conversations.has(sessionId)) {
-      this.conversations.set(sessionId, []);
-    }
-    this.conversations.get(sessionId)!.push(turn);
-    logger.debug(`Stored conversation turn for session ${sessionId}`);
-  }
-
-  getConversation(sessionId: string): ConversationTurn[] {
-    return this.conversations.get(sessionId) || [];
-  }
-
-  getSessionIdForAgent(agentId: string): string | undefined {
-    return this.agentSessions.get(agentId);
-  }
-
-  getConversationByAgent(agentId: string): { session_id: string | null; turns: ConversationTurn[] } {
-    const sessionId = this.agentSessions.get(agentId);
-    if (!sessionId) return { session_id: null, turns: [] };
-    return { session_id: sessionId, turns: this.conversations.get(sessionId) || [] };
-  }
-
-  notifyAgent(agentId: string, message: { id: string }): void {
-    const ws = this.agentConnections.get(agentId);
-    if (ws && ws.readyState === 1) {
-      ws.send(JSON.stringify({
-        type: "message.notification",
-        agent_id: agentId,
-        message_id: message.id,
-      }));
-      logger.debug(`Notified agent ${agentId} of new message ${message.id}`);
-    }
-  }
-
-  broadcastMessage(message: unknown): void {
-    this.broadcastToDashboard({
-      type: "agent.message",
-      data: message,
     });
   }
 
@@ -263,6 +165,10 @@ export class WebSocketService {
   }
 
   close(): void {
+    if (this.heartbeatTimer !== null) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
     this.wss.close();
     logger.info("WebSocket service closed");
   }

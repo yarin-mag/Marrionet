@@ -1,4 +1,3 @@
-import * as React from "react";
 import { cn } from "../../lib/utils";
 import { getFancyStatusConfig } from "../../lib/fancy-status-config";
 import { FancyStatusBadge } from "./fancy-status-badge";

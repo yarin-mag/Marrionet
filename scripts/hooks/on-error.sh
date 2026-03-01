@@ -7,6 +7,11 @@
 
 set -euo pipefail
 
+# jq is required for JSON parsing — exit cleanly if unavailable
+if ! command -v jq &>/dev/null; then
+  exit 0
+fi
+
 API_URL="${MARIONETTE_API_URL:-http://localhost:8787}"
 TERMINAL="${TERM_SESSION_ID:-${TERM:-default}}"
 CWD="${PWD:-$(pwd)}"
@@ -26,10 +31,36 @@ fi
 
 RUN_ID="${SESSION_ID:-error_${TERMINAL}_$(date +%s)}"
 
-AGENT_ID=$(curl -s --max-time 3 "${API_URL}/api/agents" 2>/dev/null \
-  | jq -r --arg term "$TERMINAL" --arg cwd "$CWD" \
-    'map(select(.terminal == $term or .cwd == $cwd)) | sort_by(.last_activity) | last | .agent_id // ""' \
-    2>/dev/null || echo "")
+# ── Agent ID resolution ──────────────────────────────────────────────────────
+TMPDIR="${TMPDIR:-${TMP:-/tmp}}"
+
+_sha256_8() {
+  if command -v sha256sum &>/dev/null; then
+    printf '%s' "$1" | sha256sum | cut -c1-8
+  else
+    printf '%s' "$1" | shasum -a 256 | cut -c1-8
+  fi
+}
+
+AGENT_TMPFILE="${TMPDIR}/marionette-agent-$(_sha256_8 "$CWD")"
+
+# 1. Try temp file (MCP server writes this synchronously on startup)
+AGENT_ID=""
+if [ -f "$AGENT_TMPFILE" ]; then
+  _tmp=$(cat "$AGENT_TMPFILE" 2>/dev/null || echo "")
+  if [[ "$_tmp" =~ ^agent_[0-9a-f]{16}$ ]]; then
+    AGENT_ID="$_tmp"
+  fi
+fi
+
+# 2. Fall back to API lookup (CLI/wrapper mode — matches by terminal or cwd)
+if [ -z "$AGENT_ID" ]; then
+  AGENT_ID=$(curl -s --max-time 3 "${API_URL}/api/agents" 2>/dev/null \
+    | jq -r --arg term "$TERMINAL" --arg cwd "$CWD" \
+      'map(select(.terminal == $term or .cwd == $cwd)) | sort_by(.last_activity) | last | .agent_id // ""' \
+      2>/dev/null || echo "")
+fi
+# ─────────────────────────────────────────────────────────────────────────────
 
 if [ -z "$AGENT_ID" ]; then
   exit 0

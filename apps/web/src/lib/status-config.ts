@@ -70,4 +70,10 @@ export const STATUS_COLORS: Record<AgentStatus, StatusConfig> = {
     bg: "bg-gray-50 dark:bg-gray-800",
     label: "Disconnected",
   },
+  awaiting_input: {
+    border: "border-l-amber-400",
+    badge: "warning",
+    bg: "bg-amber-50 dark:bg-amber-900/20",
+    label: "Needs Attention",
+  },
 } as const;

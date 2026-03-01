@@ -1,9 +1,9 @@
 import { useState, useMemo } from "react";
 import type { AgentSnapshot, AgentStatus } from "@marionette/shared";
-import { extractFolder } from "../../../lib/utils";
+import { extractFolder, estimateSessionCost } from "../../../lib/utils";
 import { useDebounce } from "../../../hooks/useDebounce";
 
-export type SortKey = "name" | "status" | "runs" | "tokens" | "errors" | "last_activity";
+export type SortKey = "name" | "status" | "runs" | "tokens" | "cost" | "errors" | "last_activity";
 export type SortDir = "asc" | "desc";
 export type GroupBy = "none" | "status" | "location";
 
@@ -37,6 +37,9 @@ function sortAgents(agents: AgentSnapshot[], key: SortKey, dir: SortDir): AgentS
         break;
       case "tokens":
         cmp = a.session_tokens - b.session_tokens;
+        break;
+      case "cost":
+        cmp = estimateSessionCost(a.session_tokens) - estimateSessionCost(b.session_tokens);
         break;
       case "errors":
         cmp = a.session_errors - b.session_errors;

@@ -38,7 +38,7 @@ export function useDashboardStats(agents: AgentSnapshot[]): DashboardStats {
       ["error", "crashed"].includes(a.status)
     ).length,
     needsAttentionCount: agents.filter((a) =>
-      ["blocked", "error", "crashed"].includes(a.status)
+      ["blocked", "error", "crashed", "awaiting_input"].includes(a.status)
     ).length,
     retiredCount: agents.filter((a) => a.status === "disconnected").length,
   };

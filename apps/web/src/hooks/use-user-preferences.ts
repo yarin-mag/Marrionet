@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import type { UserPreferences } from "../lib/user-preferences";
-import { loadPreferences, savePreferences } from "../lib/user-preferences";
+import { loadPreferences, savePreferences, DEFAULT_PREFERENCES } from "../lib/user-preferences";
 
 /**
  * Hook for managing user preferences with persistence
@@ -31,12 +31,8 @@ export function useUserPreferences() {
 
   // Reset to defaults
   const resetPreferences = useCallback(() => {
-    const defaults: UserPreferences = {
-      agentDetailView: "modal",
-      theme: "system",
-    };
-    setPreferences(defaults);
-    savePreferences(defaults);
+    setPreferences(DEFAULT_PREFERENCES);
+    savePreferences(DEFAULT_PREFERENCES);
   }, []);
 
   return {

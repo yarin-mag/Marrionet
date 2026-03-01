@@ -14,12 +14,14 @@ interface DbAgentRow {
   total_runs: number;
   total_tasks: number;
   total_errors: number;
-  total_tokens: string;
-  total_duration_ms: string;
+  total_tokens: number;
+  total_duration_ms: number;
   session_start: string | null;
   session_runs: number;
   session_errors: number;
-  session_tokens: string;
+  session_tokens: number;
+  status_since: string | null;
+  source_file: string | null;
   metadata: string | null;
 }
 
@@ -27,18 +29,37 @@ interface DbAgentRow {
 type WrapperEvent = MarionetteEvent & { terminal?: string; cwd?: string };
 
 export class AgentRepository extends BaseRepository {
+  private static readonly VALID_STATUSES = new Set<string>([
+    'starting','idle','working','blocked','error',
+    'finished','crashed','disconnected','awaiting_input'
+  ]);
+
   /**
-   * Upsert agent for a new session (resets session counters)
+   * Parse a SQLite timestamp string (no timezone info) as UTC.
+   * SQLite's CURRENT_TIMESTAMP returns "YYYY-MM-DD HH:MM:SS" without timezone.
+   * Node.js parses space-separated datetime strings as local time, causing offset errors.
+   */
+  private parseDbTimestamp(ts: string | null): string | null {
+    if (!ts) return null;
+    const utc = ts.includes('T') ? ts : ts.replace(' ', 'T') + 'Z';
+    return new Date(utc).toISOString();
+  }
+
+  /**
+   * Upsert agent for a new session.
+   * Session counters are reset when the incoming sessionId differs from the stored one
+   * (genuine new session / /clear), and preserved when the same sessionId reconnects (WS reconnect).
    */
   async upsertForNewSession(event: MarionetteEvent): Promise<void> {
     const metadata = event.agent_metadata;
     const raw = event as WrapperEvent;
+    const sessionId = (event.payload?.sessionId as string | undefined) ?? null;
 
     await this.query(
       `INSERT INTO agents (
         agent_id, agent_name, status, terminal, cwd,
-        last_activity, session_start, metadata
-      ) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, $6)
+        last_activity, session_start, metadata, status_since, current_session_id
+      ) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, $6, CURRENT_TIMESTAMP, $7)
       ON CONFLICT (agent_id) DO UPDATE SET
         agent_name = COALESCE(excluded.agent_name, agents.agent_name),
         status = excluded.status,
@@ -46,18 +67,21 @@ export class AgentRepository extends BaseRepository {
         cwd = COALESCE(excluded.cwd, agents.cwd),
         last_activity = CURRENT_TIMESTAMP,
         session_start = CURRENT_TIMESTAMP,
-        session_runs = 0,
-        session_errors = 0,
-        session_tokens = 0,
+        session_runs   = CASE WHEN agents.current_session_id IS NULL OR agents.current_session_id != excluded.current_session_id THEN 0 ELSE agents.session_runs END,
+        session_errors = CASE WHEN agents.current_session_id IS NULL OR agents.current_session_id != excluded.current_session_id THEN 0 ELSE agents.session_errors END,
+        session_tokens = CASE WHEN agents.current_session_id IS NULL OR agents.current_session_id != excluded.current_session_id THEN 0 ELSE agents.session_tokens END,
+        current_session_id = excluded.current_session_id,
+        status_since = CASE WHEN excluded.status != agents.status THEN CURRENT_TIMESTAMP ELSE agents.status_since END,
         metadata = COALESCE(excluded.metadata, agents.metadata),
         updated_at = CURRENT_TIMESTAMP`,
       [
         event.agent_id,
         metadata?.name ?? null,
-        event.status ?? "working",
+        AgentRepository.VALID_STATUSES.has(event.status as string) ? event.status : "working",
         metadata?.terminal ?? raw.terminal ?? null,
         metadata?.cwd ?? raw.cwd ?? null,
         this.safeStringify(metadata),
+        sessionId,
       ]
     );
   }
@@ -68,27 +92,31 @@ export class AgentRepository extends BaseRepository {
   async upsertForExistingSession(event: MarionetteEvent): Promise<void> {
     const metadata = event.agent_metadata;
     const raw = event as WrapperEvent;
+    const currentTask = (event.payload?.current_task as string | undefined) ?? null;
 
     await this.query(
       `INSERT INTO agents (
         agent_id, agent_name, status, terminal, cwd,
-        last_activity, session_start, metadata
-      ) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, $6)
+        last_activity, session_start, metadata, status_since
+      ) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, $6, CURRENT_TIMESTAMP)
       ON CONFLICT (agent_id) DO UPDATE SET
         agent_name = COALESCE(excluded.agent_name, agents.agent_name),
-        status = excluded.status,
+        status = COALESCE(excluded.status, agents.status),
         terminal = COALESCE(excluded.terminal, agents.terminal),
         cwd = COALESCE(excluded.cwd, agents.cwd),
         last_activity = CURRENT_TIMESTAMP,
+        current_task = COALESCE($7, agents.current_task),
+        status_since = CASE WHEN COALESCE(excluded.status, agents.status) != agents.status THEN CURRENT_TIMESTAMP ELSE agents.status_since END,
         metadata = COALESCE(excluded.metadata, agents.metadata),
         updated_at = CURRENT_TIMESTAMP`,
       [
         event.agent_id,
         metadata?.name ?? null,
-        event.status ?? "working",
+        AgentRepository.VALID_STATUSES.has(event.status as string) ? event.status : null,
         metadata?.terminal ?? raw.terminal ?? null,
         metadata?.cwd ?? raw.cwd ?? null,
         this.safeStringify(metadata),
+        currentTask,
       ]
     );
   }
@@ -121,7 +149,13 @@ export class AgentRepository extends BaseRepository {
    */
   async updateStatus(agentId: string, status: AgentStatus): Promise<number> {
     const result = await this.query(
-      "UPDATE agents SET status = $1, last_activity = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE agent_id = $2 RETURNING agent_id",
+      `UPDATE agents
+       SET status = $1,
+           last_activity = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP,
+           status_since = CASE WHEN status != $1 THEN CURRENT_TIMESTAMP ELSE status_since END
+       WHERE agent_id = $2 RETURNING agent_id`,
+      // $1 = new status (used twice by convertPlaceholders), $2 = agentId
       [status, agentId]
     );
     return result.length;
@@ -138,95 +172,6 @@ export class AgentRepository extends BaseRepository {
   }
 
   /**
-   * Find agent by terminal and cwd
-   */
-  async findByTerminalAndCwd(
-    terminal: string,
-    cwd: string
-  ): Promise<AgentSnapshot | null> {
-    const row = await this.queryOne<DbAgentRow>(
-      "SELECT * FROM agents WHERE terminal = $1 AND cwd = $2",
-      [terminal, cwd]
-    );
-    return row ? this.mapToSnapshot(row) : null;
-  }
-
-  /**
-   * Find agent by terminal only
-   */
-  async findByTerminal(terminal: string): Promise<AgentSnapshot | null> {
-    const row = await this.queryOne<DbAgentRow>(
-      "SELECT * FROM agents WHERE terminal = $1",
-      [terminal]
-    );
-    return row ? this.mapToSnapshot(row) : null;
-  }
-
-  /**
-   * Find agent by cwd only
-   */
-  async findByCwd(cwd: string): Promise<AgentSnapshot | null> {
-    const row = await this.queryOne<DbAgentRow>(
-      "SELECT * FROM agents WHERE cwd = $1",
-      [cwd]
-    );
-    return row ? this.mapToSnapshot(row) : null;
-  }
-
-  /**
-   * Find most recent agent
-   */
-  async findMostRecent(): Promise<AgentSnapshot | null> {
-    const row = await this.queryOne<DbAgentRow>(
-      "SELECT * FROM agents ORDER BY last_activity DESC LIMIT 1"
-    );
-    return row ? this.mapToSnapshot(row) : null;
-  }
-
-  /**
-   * Update agent by terminal and cwd
-   * IMPORTANT: Only updates the most recently active agent to prevent
-   * status changes from affecting all Claude processes in the same directory
-   */
-  async updateByTerminalAndCwd(terminal: string, cwd: string, status: AgentStatus): Promise<number> {
-    const result = await this.query(
-      this.buildActiveAgentUpdateSql("terminal = $2 AND cwd = $3"),
-      [status, terminal, cwd]
-    );
-    return result.length;
-  }
-
-  async updateByTerminal(terminal: string, status: AgentStatus): Promise<number> {
-    const result = await this.query(
-      this.buildActiveAgentUpdateSql("terminal = $2"),
-      [status, terminal]
-    );
-    return result.length;
-  }
-
-  async updateByCwd(cwd: string, status: AgentStatus): Promise<number> {
-    const result = await this.query(
-      this.buildActiveAgentUpdateSql("cwd = $2"),
-      [status, cwd]
-    );
-    return result.length;
-  }
-
-  /**
-   * Update most recent agent
-   */
-  async updateMostRecent(status: AgentStatus): Promise<number> {
-    const result = await this.query(
-      `UPDATE agents
-       SET status = $1, last_activity = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-       WHERE agent_id = (SELECT agent_id FROM agents ORDER BY last_activity DESC LIMIT 1)
-       RETURNING agent_id`,
-      [status]
-    );
-    return result.length;
-  }
-
-  /**
    * Create a new agent
    */
   async create(
@@ -239,38 +184,30 @@ export class AgentRepository extends BaseRepository {
     await this.query(
       `INSERT INTO agents (
         agent_id, agent_name, status, terminal, cwd,
-        last_activity, session_start
-      ) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        last_activity, session_start, status_since
+      ) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       ON CONFLICT (agent_id) DO UPDATE SET
-        status = $3,
+        status = excluded.status,
         last_activity = CURRENT_TIMESTAMP,
+        status_since = CASE WHEN agents.status != excluded.status THEN CURRENT_TIMESTAMP ELSE agents.status_since END,
         updated_at = CURRENT_TIMESTAMP`,
       [agentId, agentName, status, terminal ?? null, cwd ?? null]
     );
   }
 
   /**
-   * Mark inactive agents as idle
+   * Delete crashed/idle/error agents and return the deleted rows so callers
+   * can extract source file paths from the same transaction (avoids TOCTOU).
    */
-  async markIdle(idleTimeoutMinutes: number = 2): Promise<number> {
-    const result = await this.query(
-      `UPDATE agents
-       SET status = 'idle', updated_at = CURRENT_TIMESTAMP
-       WHERE status IN ('working', 'starting', 'blocked')
-         AND last_activity < datetime('now', '-${idleTimeoutMinutes} minutes')
-       RETURNING agent_id`
+  async deleteCrashed(): Promise<{ agentId: string; sourceFile: string | null }[]> {
+    const rows = await this.query<{ agent_id: string; source_file: string | null }>(
+      `DELETE FROM agents WHERE status IN ('crashed', 'idle', 'error')
+       RETURNING agent_id, source_file`
     );
-    return result.length;
-  }
-
-  /**
-   * Delete crashed/idle/error agents
-   */
-  async deleteCrashed(): Promise<number> {
-    const result = await this.query(
-      `DELETE FROM agents WHERE status IN ('crashed', 'idle', 'error') RETURNING agent_id`
-    );
-    return result.length;
+    return rows.map((r) => ({
+      agentId: r.agent_id,
+      sourceFile: r.source_file ?? null,
+    }));
   }
 
   /**
@@ -302,6 +239,26 @@ export class AgentRepository extends BaseRepository {
     await this.query(
       "UPDATE agents SET metadata = $1, updated_at = CURRENT_TIMESTAMP WHERE agent_id = $2",
       [this.safeStringify(metadata), agentId]
+    );
+  }
+
+  /**
+   * Update source file path (server-internal filesystem path, stored as a dedicated column)
+   */
+  async updateSourceFile(agentId: string, sourceFile: string | null): Promise<void> {
+    await this.query(
+      "UPDATE agents SET source_file = $1, updated_at = CURRENT_TIMESTAMP WHERE agent_id = $2",
+      [sourceFile, agentId]
+    );
+  }
+
+  /**
+   * Update current task
+   */
+  async updateTask(agentId: string, task: string | null): Promise<void> {
+    await this.query(
+      "UPDATE agents SET current_task = $1, updated_at = CURRENT_TIMESTAMP WHERE agent_id = $2",
+      [task, agentId]
     );
   }
 
@@ -343,55 +300,39 @@ export class AgentRepository extends BaseRepository {
     tokens: number,
     durationMs: number
   ): Promise<void> {
+    const safeTokens = Math.max(0, tokens);
+    const safeDuration = Math.max(0, durationMs);
     await this.query(
       `UPDATE agents SET
-        total_tokens = total_tokens + $2,
+        total_tokens = total_tokens + $1,
         session_tokens = session_tokens + $2,
         total_duration_ms = total_duration_ms + $3
-      WHERE agent_id = $1`,
-      [agentId, tokens, durationMs]
+      WHERE agent_id = $4`,
+      [safeTokens, safeTokens, safeDuration, agentId]
     );
-  }
-
-  /**
-   * Map database row to AgentSnapshot
-   */
-  private buildActiveAgentUpdateSql(whereClause: string): string {
-    return `UPDATE agents
-       SET status = $1, last_activity = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-       WHERE agent_id = (
-         SELECT agent_id FROM agents
-         WHERE ${whereClause}
-           AND status NOT IN ('finished', 'disconnected')
-         ORDER BY last_activity DESC
-         LIMIT 1
-       )
-       RETURNING agent_id`;
   }
 
   private mapToSnapshot(row: DbAgentRow): AgentSnapshot {
     return {
       agent_id: row.agent_id,
-      agent_name: row.agent_name,
-      status: row.status,
-      current_run_id: row.current_run_id,
-      current_task: row.current_task,
-      last_activity: row.last_activity
-        ? new Date(row.last_activity).toISOString()
-        : new Date().toISOString(),
-      terminal: row.terminal,
-      cwd: row.cwd,
+      agent_name: row.agent_name ?? undefined,
+      status: row.status as AgentStatus,
+      current_run_id: row.current_run_id ?? undefined,
+      current_task: row.current_task ?? undefined,
+      last_activity: this.parseDbTimestamp(row.last_activity) ?? new Date().toISOString(),
+      terminal: row.terminal ?? undefined,
+      cwd: row.cwd ?? undefined,
       total_runs: row.total_runs ?? 0,
       total_tasks: row.total_tasks ?? 0,
       total_errors: row.total_errors ?? 0,
-      total_tokens: parseInt(row.total_tokens ?? "0", 10),
-      total_duration_ms: parseInt(row.total_duration_ms ?? "0", 10),
-      session_start: row.session_start
-        ? new Date(row.session_start).toISOString()
-        : undefined,
+      total_tokens: row.total_tokens ?? 0,
+      total_duration_ms: row.total_duration_ms ?? 0,
+      session_start: this.parseDbTimestamp(row.session_start) ?? undefined,
       session_runs: row.session_runs ?? 0,
       session_errors: row.session_errors ?? 0,
-      session_tokens: parseInt(row.session_tokens ?? "0", 10),
+      session_tokens: row.session_tokens ?? 0,
+      status_since: this.parseDbTimestamp(row.status_since) ?? undefined,
+      source_file: row.source_file ?? undefined,
       metadata: this.safeParse(row.metadata),
     };
   }

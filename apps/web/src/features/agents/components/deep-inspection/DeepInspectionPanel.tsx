@@ -2,16 +2,15 @@ import { useState } from "react";
 import { Button } from "../../../../components/ui/button";
 import { GlassCard } from "../../../../components/ui/glass-card";
 import { ScrollArea } from "../../../../components/ui/scroll-area";
-import { Brain, Database, Code, Zap, Loader2 } from "lucide-react";
+import { Database, Code, Zap, Loader2 } from "lucide-react";
 import type { InspectData } from "./types";
 import { ContextView } from "./ContextView";
-import { ThinkingView } from "./ThinkingView";
 import { MetricsView } from "./MetricsView";
 import { RawView } from "./RawView";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8787";
 
-type ViewMode = "thinking" | "context" | "raw" | "metrics";
+type ViewMode = "context" | "raw" | "metrics";
 
 interface DeepInspectionPanelProps {
   agentId: string;
@@ -50,17 +49,15 @@ export function DeepInspectionPanel({ agentId }: DeepInspectionPanelProps) {
 
   const handleViewChange = (newView: ViewMode) => {
     setView(newView);
-    const target = newView === "thinking" || newView === "context" ? newView : "all";
-    executeInspect(target);
+    executeInspect(newView === "context" ? "context" : "all");
   };
 
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
-        <Button onClick={() => handleViewChange("context")}  variant={view === "context"  ? "default" : "outline"} size="sm" className="flex items-center gap-2"><Database className="h-4 w-4" />Context</Button>
-        <Button onClick={() => handleViewChange("thinking")} variant={view === "thinking" ? "default" : "outline"} size="sm" className="flex items-center gap-2"><Brain    className="h-4 w-4" />Thinking</Button>
-        <Button onClick={() => handleViewChange("metrics")}  variant={view === "metrics"  ? "default" : "outline"} size="sm" className="flex items-center gap-2"><Zap      className="h-4 w-4" />Metrics</Button>
-        <Button onClick={() => handleViewChange("raw")}      variant={view === "raw"      ? "default" : "outline"} size="sm" className="flex items-center gap-2"><Code     className="h-4 w-4" />Raw</Button>
+        <Button onClick={() => handleViewChange("context")} variant={view === "context" ? "default" : "outline"} size="sm" className="flex items-center gap-2"><Database className="h-4 w-4" />Context</Button>
+        <Button onClick={() => handleViewChange("metrics")} variant={view === "metrics" ? "default" : "outline"} size="sm" className="flex items-center gap-2"><Zap      className="h-4 w-4" />Metrics</Button>
+        <Button onClick={() => handleViewChange("raw")}     variant={view === "raw"     ? "default" : "outline"} size="sm" className="flex items-center gap-2"><Code     className="h-4 w-4" />Raw</Button>
       </div>
 
       <GlassCard className="p-4">
@@ -81,7 +78,6 @@ export function DeepInspectionPanel({ agentId }: DeepInspectionPanelProps) {
           {!isLoading && !error && data && (
             <div className="space-y-4">
               {view === "context"  && <ContextView  data={data} />}
-              {view === "thinking" && <ThinkingView data={data} />}
               {view === "metrics"  && <MetricsView  data={data} />}
               {view === "raw"      && <RawView      data={data} />}
             </div>

@@ -2,17 +2,21 @@
  * User Preferences System
  * Manages user settings with localStorage persistence
  */
+import { API_URL } from "./constants";
 
 export interface UserPreferences {
   agentDetailView: "modal" | "sidecard";
   theme?: "light" | "dark" | "system";
+  calendarClickToAdd: boolean;
+  mcpSetTaskEnabled?: boolean;
 }
 
 const STORAGE_KEY = "marionette_user_preferences";
 
-const DEFAULT_PREFERENCES: UserPreferences = {
-  agentDetailView: "modal", // Default to modal
+export const DEFAULT_PREFERENCES: UserPreferences = {
+  agentDetailView: "modal",
   theme: "system",
+  calendarClickToAdd: false,
 };
 
 /**
@@ -62,4 +66,31 @@ export function getPreference<K extends keyof UserPreferences>(
 ): UserPreferences[K] {
   const preferences = loadPreferences();
   return preferences[key];
+}
+
+/**
+ * Fetch a single preference value from the server
+ */
+export async function fetchServerPreference<T>(key: string, fallback: T): Promise<T> {
+  try {
+    const res = await fetch(`${API_URL}/api/preferences`);
+    if (!res.ok) return fallback;
+    const prefs = await res.json() as Record<string, unknown>;
+    return key in prefs ? (prefs[key] as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Save a single preference value to the server.
+ * Throws if the server responds with a non-2xx status so callers can surface the error.
+ */
+export async function saveServerPreference(key: string, value: unknown): Promise<void> {
+  const res = await fetch(`${API_URL}/api/preferences`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ [key]: value }),
+  });
+  if (!res.ok) throw new Error(`Failed to save preference "${key}": ${res.status}`);
 }

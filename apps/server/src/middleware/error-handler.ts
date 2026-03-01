@@ -9,7 +9,7 @@ export const errorHandler = (
   err: Error,
   req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ) => {
   logger.error(`Request error [${req.method} ${req.path}]:`, err);
 

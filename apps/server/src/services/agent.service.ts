@@ -1,7 +1,25 @@
+import { writeFileSync, readFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
 import type { MarionetteEvent, AgentSnapshot, AgentStatus } from "@marionette/shared";
 import { AgentRepository } from "../repositories/agent.repository.js";
 import { logger } from "../utils/logger.js";
-import { config } from "../config/index.js";
+
+const MARIONETTE_DIR  = join(homedir(), ".marionette");
+const EXCLUDED_PATH   = join(MARIONETTE_DIR, "excluded-sessions.json");
+
+function appendExcludedFiles(filePaths: string[]): void {
+  if (filePaths.length === 0) return;
+  try {
+    let existing: string[] = [];
+    try { existing = JSON.parse(readFileSync(EXCLUDED_PATH, "utf8")) as string[]; } catch {}
+    const merged = [...new Set([...existing, ...filePaths])];
+    mkdirSync(MARIONETTE_DIR, { recursive: true });
+    writeFileSync(EXCLUDED_PATH, JSON.stringify(merged, null, 2), "utf8");
+  } catch (err) {
+    logger.warn("Could not update excluded-sessions.json:", err);
+  }
+}
 
 /**
  * Service class for agent business logic
@@ -16,7 +34,8 @@ export class AgentService {
   async upsertAgent(event: MarionetteEvent): Promise<void> {
     if (!event.agent_id) return;
 
-    const isNewSession = event.type === "agent.started";
+    const isNewSession =
+      event.type === "agent.started" || event.type === "conversation.started";
 
     if (isNewSession) {
       await this.repository.upsertForNewSession(event);
@@ -48,7 +67,7 @@ export class AgentService {
     const duration = event.duration_ms ?? 0;
 
     // Increment event-type specific counters
-    if (event.type === "run.started" || event.type === "run.ended") {
+    if (event.type === "run.ended") {
       await this.repository.incrementRuns(event.agent_id);
     } else if (event.type === "task.started") {
       await this.repository.incrementTasks(event.agent_id);
@@ -77,43 +96,45 @@ export class AgentService {
   }
 
   /**
-   * Mark inactive agents as idle
-   */
-  async markIdleAgents(): Promise<number> {
-    const count = await this.repository.markIdle(config.websocket.idleTimeoutMinutes);
-    if (count > 0) {
-      logger.info(`Marked ${count} agent(s) as idle`);
-    }
-    return count;
-  }
-
-  /**
-   * Delete crashed/idle/error agents
+   * Delete crashed/idle/error agents and exclude their source files from future scans.
    */
   async deleteCrashedAgents(): Promise<number> {
-    const count = await this.repository.deleteCrashed();
-    logger.info(`Deleted ${count} crashed agent(s)`);
-    return count;
+    const deleted = await this.repository.deleteCrashed();
+    const sourcePaths = deleted.map((d) => d.sourceFile).filter(Boolean) as string[];
+    if (sourcePaths.length > 0) appendExcludedFiles(sourcePaths);
+    logger.info(`Deleted ${deleted.length} crashed/idle/error agents`);
+    return deleted.length;
   }
 
   /**
-   * Delete all agents
+   * Delete all agents and exclude all their source files from future scans.
    */
   async deleteAllAgents(): Promise<number> {
+    const agents = await this.repository.findAll();
+    const sourcePaths = agents
+      .map((a) => a.source_file)
+      .filter(Boolean) as string[];
+
     const count = await this.repository.deleteAll();
+    appendExcludedFiles(sourcePaths);
     logger.info(`Deleted ${count} agent(s)`);
     return count;
   }
 
   /**
-   * Delete a single agent by ID
+   * Delete a single agent by ID and exclude its source file from future scans.
    */
   async deleteAgent(agentId: string): Promise<number> {
-    return this.repository.deleteById(agentId);
+    const agent = await this.repository.findById(agentId);
+    const sourceFile = agent?.source_file;
+
+    const count = await this.repository.deleteById(agentId);
+    if (sourceFile) appendExcludedFiles([sourceFile]);
+    return count;
   }
 
   /**
-   * Update agent metadata (custom name, labels, jira tickets)
+   * Update agent metadata (custom name, labels, jira tickets, current task, notes, process pid)
    */
   async updateMetadata(
     agentId: string,
@@ -121,104 +142,40 @@ export class AgentService {
       custom_name?: string | null;
       labels?: string[];
       jira_tickets?: string[];
+      source_file?: string;
+      current_task?: string | null;
+      notes?: string | null;
+      process_pid?: number | null;
+      token_budget?: number | null;
+      cost_budget_usd?: number | null;
     }
   ): Promise<Record<string, any>> {
     const agent = await this.repository.findById(agentId);
     if (!agent) {
-      throw new Error("Agent not found");
+      logger.warn(`updateMetadata: agent ${agentId} not found yet, skipping`);
+      return {};
     }
 
     const metadata = agent.metadata || {};
 
-    if (updates.custom_name !== undefined) {
-      metadata.custom_name = updates.custom_name;
-    }
-    if (updates.labels !== undefined) {
-      metadata.labels = updates.labels;
-    }
-    if (updates.jira_tickets !== undefined) {
-      metadata.jira_tickets = updates.jira_tickets;
-    }
+    if (updates.custom_name !== undefined) metadata.custom_name = updates.custom_name;
+    if (updates.labels !== undefined) metadata.labels = updates.labels;
+    if (updates.jira_tickets !== undefined) metadata.jira_tickets = updates.jira_tickets;
+    if (updates.notes !== undefined) metadata.notes = updates.notes;
+    if (updates.process_pid !== undefined) metadata.process_pid = updates.process_pid;
+    if (updates.token_budget !== undefined) metadata.token_budget = updates.token_budget;
+    if (updates.cost_budget_usd !== undefined) metadata.cost_budget_usd = updates.cost_budget_usd;
 
     await this.repository.updateMetadata(agentId, metadata);
+
+    if (updates.source_file !== undefined) {
+      await this.repository.updateSourceFile(agentId, updates.source_file ?? null);
+    }
+
+    if (updates.current_task !== undefined) {
+      await this.repository.updateTask(agentId, updates.current_task as string | null);
+    }
+
     return metadata;
-  }
-
-  /**
-   * Update agent status by various criteria
-   * Returns the updated agent_id or null if no agent was updated
-   */
-  async updateStatusByCriteria(
-    criteria: {
-      agentId?: string;
-      terminal?: string;
-      cwd?: string;
-    },
-    status: AgentStatus
-  ): Promise<{ agentId: string | null; rowCount: number }> {
-    const { agentId, terminal, cwd } = criteria;
-
-    let rowCount = 0;
-    let updatedAgentId: string | null = null;
-
-    // Try to update by agent_id first
-    if (agentId) {
-      rowCount = await this.repository.updateStatus(agentId, status);
-      if (rowCount > 0) {
-        updatedAgentId = agentId;
-      }
-    }
-    // Try terminal AND cwd
-    else if (terminal && cwd) {
-      rowCount = await this.repository.updateByTerminalAndCwd(terminal, cwd, status);
-      if (rowCount > 0) {
-        const agent = await this.repository.findByTerminalAndCwd(terminal, cwd);
-        updatedAgentId = agent?.agent_id ?? null;
-      }
-    }
-    // Fallback: terminal only
-    else if (terminal) {
-      rowCount = await this.repository.updateByTerminal(terminal, status);
-      if (rowCount > 0) {
-        const agent = await this.repository.findByTerminal(terminal);
-        updatedAgentId = agent?.agent_id ?? null;
-      }
-    }
-    // Fallback: cwd only
-    else if (cwd) {
-      rowCount = await this.repository.updateByCwd(cwd, status);
-      if (rowCount > 0) {
-        const agent = await this.repository.findByCwd(cwd);
-        updatedAgentId = agent?.agent_id ?? null;
-      }
-    }
-    // Last resort: most recent agent
-    else {
-      rowCount = await this.repository.updateMostRecent(status);
-      if (rowCount > 0) {
-        const agent = await this.repository.findMostRecent();
-        updatedAgentId = agent?.agent_id ?? null;
-      }
-    }
-
-    return { agentId: updatedAgentId, rowCount };
-  }
-
-  /**
-   * Create a new agent if none exists
-   */
-  async createAgentIfNotExists(
-    terminal?: string,
-    cwd?: string,
-    status: AgentStatus = "working"
-  ): Promise<string> {
-    const agentId = `agent_${terminal}_${cwd}`
-      .replace(/[^a-zA-Z0-9_]/g, "_")
-      .substring(0, 50);
-
-    await this.repository.create(agentId, "Claude Agent", status, terminal, cwd);
-    logger.info(`Created new agent ${agentId}`);
-
-    return agentId;
   }
 }

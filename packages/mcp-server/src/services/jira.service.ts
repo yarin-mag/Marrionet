@@ -6,6 +6,8 @@ import { logger } from "../utils/logger.js";
  * Handles ticket detection and syncing to Marionette
  */
 export class JiraService {
+  /** Hard cap to prevent unbounded memory growth over long MCP server lifetimes */
+  private static readonly MAX_TICKETS = 500;
   private tickets = new Set<string>();
 
   constructor(private agentId: string) {}
@@ -34,6 +36,11 @@ export class JiraService {
       return false;
     }
 
+    if (this.tickets.size >= JiraService.MAX_TICKETS) {
+      logger.warn(`Jira ticket limit (${JiraService.MAX_TICKETS}) reached; ticket not added: ${ticketId}`);
+      return false;
+    }
+
     this.tickets.add(ticketId);
     logger.info(`Tracking Jira ticket: ${ticketId}`);
     return true;
@@ -51,13 +58,13 @@ export class JiraService {
    */
   async syncTickets(additionalTickets?: string[]): Promise<void> {
     try {
-      // Add any additional tickets
+      // Add any additional tickets (respecting the size cap)
       if (additionalTickets) {
-        additionalTickets.forEach((ticket) => {
-          if (this.isValidTicket(ticket)) {
+        for (const ticket of additionalTickets) {
+          if (this.isValidTicket(ticket) && this.tickets.size < JiraService.MAX_TICKETS) {
             this.tickets.add(ticket);
           }
-        });
+        }
       }
 
       const tickets = Array.from(this.tickets);

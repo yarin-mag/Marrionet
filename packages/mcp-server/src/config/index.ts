@@ -7,7 +7,7 @@ export const config = {
   serverUrl: process.env.MARIONETTE_SERVER_URL ?? "http://localhost:3001",
 
   get wsUrl(): string {
-    return this.apiUrl.replace("http", "ws") + "/agent-stream";
+    return this.apiUrl.replace(/^https?/, (scheme) => scheme === "https" ? "wss" : "ws") + "/agent-stream";
   },
 
   heartbeat: {

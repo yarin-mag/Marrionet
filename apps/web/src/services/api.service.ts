@@ -42,6 +42,9 @@ class ApiService {
       custom_name?: string | null;
       labels?: string[];
       jira_tickets?: string[];
+      notes?: string | null;
+      token_budget?: number | null;
+      cost_budget_usd?: number | null;
     }
   ): Promise<void> {
     const res = await fetch(`${this.baseUrl}/api/agents/${agentId}`, {
@@ -80,6 +83,34 @@ class ApiService {
     }
 
     return res.json();
+  }
+
+  /**
+   * Send SIGTERM to the agent's Claude process
+   */
+  async killAgent(agentId: string): Promise<{ ok: boolean; pid?: number }> {
+    const res = await fetch(`${this.baseUrl}/api/agents/${agentId}/kill`, {
+      method: "POST",
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw Object.assign(new Error(data.error ?? `Kill failed: ${res.statusText}`), { status: res.status, data });
+    }
+    return data;
+  }
+
+  /**
+   * Focus the agent's terminal/editor window
+   */
+  async focusAgent(agentId: string): Promise<{ ok: boolean; method?: string }> {
+    const res = await fetch(`${this.baseUrl}/api/agents/${agentId}/focus`, {
+      method: "POST",
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw Object.assign(new Error(data.error ?? `Focus failed: ${res.statusText}`), { status: res.status, data });
+    }
+    return data;
   }
 
   /**
