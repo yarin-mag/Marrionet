@@ -1,7 +1,7 @@
 {
   "name": "marionette",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "packageManager": "pnpm@9.0.0",
   "workspaces": [
     "apps/*",
@@ -19,7 +19,10 @@
     "format": "pnpm -r format"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["better-sqlite3", "esbuild"]
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild"
+    ]
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.18.0",
