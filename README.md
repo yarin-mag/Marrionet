@@ -24,6 +24,22 @@ After installing, open **http://localhost:8787**.
 
 ---
 
+## Uninstall
+
+**macOS / Linux**
+```bash
+curl -fsSL https://raw.githubusercontent.com/yarin-mag/Marrionet/master/scripts/uninstall.sh | bash
+```
+
+**Windows** (PowerShell)
+```powershell
+irm https://raw.githubusercontent.com/yarin-mag/Marrionet/master/scripts/uninstall.ps1 | iex
+```
+
+This stops the running services, removes the MCP registration and hooks from Claude Code, clears the `ANTHROPIC_BASE_URL` environment variable, and deletes the installation directory.
+
+---
+
 ## Development Setup
 
 ### Prerequisites
