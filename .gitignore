@@ -61,3 +61,11 @@ db/*.db
 
 # Misc
 __MACOSX/
+
+# Release docs (maintainer-only)
+RELEASING.md
+
+# Private / local-only files
+LAUNCH_STRATEGY.md
+messup-fixes.md
+.claude/

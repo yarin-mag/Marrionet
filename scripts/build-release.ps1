@@ -16,6 +16,7 @@ pnpm --filter "@marionette/shared" run build
 pnpm --filter "@marionette/file-watcher" run build
 pnpm --filter "@marionette/mcp-server" run build
 pnpm --filter "@marionette/hooks" run build
+pnpm --filter "@marionette/api-proxy" run build
 pnpm --filter "marionette-server" run build
 
 # ── 2. Build React web app ────────────────────────────────────────────────────
@@ -32,6 +33,7 @@ if (Test-Path "release") { Remove-Item -Recurse -Force "release" }
     "$ReleaseDir\dist\mcp",
     "$ReleaseDir\dist\shared",
     "$ReleaseDir\dist\hooks",
+    "$ReleaseDir\dist\proxy",
     "$ReleaseDir\web"
 ) | ForEach-Object { New-Item -ItemType Directory -Force $_ | Out-Null }
 
@@ -40,6 +42,7 @@ Copy-Item -Recurse -Force "packages\file-watcher\dist\*"   "$ReleaseDir\dist\wat
 Copy-Item -Recurse -Force "packages\mcp-server\dist\*"     "$ReleaseDir\dist\mcp\"
 Copy-Item -Recurse -Force "packages\shared\dist\*"         "$ReleaseDir\dist\shared\"
 Copy-Item -Recurse -Force "packages\hooks\dist\*"          "$ReleaseDir\dist\hooks\"
+Copy-Item -Recurse -Force "packages\api-proxy\dist\*"      "$ReleaseDir\dist\proxy\"
 Copy-Item -Recurse -Force "apps\web\dist\*"                "$ReleaseDir\web\"
 Copy-Item -Force          "db\schema.sql"                  "$ReleaseDir\db\schema.sql"
 

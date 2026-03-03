@@ -68,6 +68,11 @@ if ($currentPath -notlike "*$binDir*") {
 Write-Host "==> Running setup..."
 & "$InstallDir\bin\marionette.cmd" setup
 
+# Set ANTHROPIC_BASE_URL so Claude Code routes through the Marionette proxy
+[Environment]::SetEnvironmentVariable("ANTHROPIC_BASE_URL", "http://localhost:8788", "User")
+$env:ANTHROPIC_BASE_URL = "http://localhost:8788"
+Write-Host "==> ANTHROPIC_BASE_URL set to http://localhost:8788 (user environment variable)"
+
 # ── Configure Claude Code hooks ───────────────────────────────────────────────
 # Hooks are plain Node.js scripts — no bash required, works on Windows natively.
 Write-Host "==> Configuring Claude Code hooks..."
@@ -117,4 +122,10 @@ Write-Host "✓ Marionette is ready."
 Write-Host "  Dashboard: http://localhost:8787"
 Write-Host "  Start manually: marionette start"
 Write-Host ""
-Write-Host "Note: Restart your terminal for PATH changes to take effect."
+Write-Host "IMPORTANT: ANTHROPIC_BASE_URL has been set to http://localhost:8788."
+Write-Host "  Claude Code will route API requests through the Marionette proxy."
+Write-Host "  The proxy starts automatically with 'marionette start'."
+Write-Host "  If the proxy is not running, Claude Code API calls will fail."
+Write-Host "  To stop using Marionette: marionette stop"
+Write-Host ""
+Write-Host "Note: Restart your terminal for PATH and environment variable changes to take effect."

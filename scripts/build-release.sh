@@ -21,6 +21,7 @@ pnpm --filter @marionette/shared run build
 pnpm --filter @marionette/file-watcher run build
 pnpm --filter @marionette/mcp-server run build
 pnpm --filter @marionette/hooks run build
+pnpm --filter @marionette/api-proxy run build
 pnpm --filter marionette-server run build
 
 # ── 2. Build React web app ────────────────────────────────────────────────────
@@ -36,6 +37,7 @@ mkdir -p "${RELEASE_DIR}/bin" \
          "${RELEASE_DIR}/dist/mcp" \
          "${RELEASE_DIR}/dist/shared" \
          "${RELEASE_DIR}/dist/hooks" \
+         "${RELEASE_DIR}/dist/proxy" \
          "${RELEASE_DIR}/web"
 
 # Server + CLI compiled JS
@@ -52,6 +54,9 @@ cp -r packages/shared/dist/.       "${RELEASE_DIR}/dist/shared/"
 
 # Hooks (cross-platform Node.js — works on macOS/Linux/Windows without bash)
 cp -r packages/hooks/dist/.        "${RELEASE_DIR}/dist/hooks/"
+
+# API proxy (intercepts Claude Code → Anthropic requests for token tracking)
+cp -r packages/api-proxy/dist/.    "${RELEASE_DIR}/dist/proxy/"
 
 # Built React app
 cp -r apps/web/dist/.              "${RELEASE_DIR}/web/"

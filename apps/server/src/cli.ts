@@ -2,6 +2,7 @@
 import "dotenv/config";
 import { spawn, exec } from "child_process";
 import { resolve, dirname, join } from "path";
+import net from "net";
 import { fileURLToPath } from "url";
 import { existsSync, mkdirSync, writeFileSync } from "fs";
 import { readFile, writeFile } from "fs/promises";
@@ -21,6 +22,14 @@ import { logger } from "./utils/logger.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const execAsync = promisify(exec);
 const subcommand = process.argv[2];
+
+function isPortInUse(port: number): Promise<boolean> {
+  return new Promise((fulfill) => {
+    const tester = net.createConnection({ port, host: "127.0.0.1" });
+    tester.once("connect", () => { tester.destroy(); fulfill(true); });
+    tester.once("error", () => fulfill(false));
+  });
+}
 
 // ---------------------------------------------------------------------------
 // start
@@ -72,12 +81,34 @@ async function start(): Promise<void> {
     logger.warn(`File watcher not found at ${watcherPath} — skipping`);
   }
 
+  // Spawn API proxy child process (skip if proxy daemon is already running)
+  const proxyPath = resolve(__dirname, "proxy/index.js");
+  let proxy: ReturnType<typeof spawn> | null = null;
+  const proxyAlreadyRunning = await isPortInUse(8788);
+  if (proxyAlreadyRunning) {
+    logger.info("API proxy already running on :8788 — skipping");
+  } else if (existsSync(proxyPath)) {
+    proxy = spawn(process.execPath, [proxyPath], {
+      stdio: "inherit",
+      env: { ...process.env, MARIONETTE_API_URL: `http://localhost:${config.port}` },
+    });
+    proxy.on("exit", (code) => {
+      logger.info(`API proxy exited with code ${code}`);
+    });
+    proxy.on("error", (err) => {
+      logger.error("API proxy failed to start:", err);
+    });
+  } else {
+    logger.warn(`API proxy not found at ${proxyPath} — skipping`);
+  }
+
   // Open browser after a short delay
   setTimeout(() => openBrowser(`http://localhost:${config.port}`), 1500);
 
   const shutdown = () => {
     logger.info("Shutting down...");
     if (watcher) watcher.kill();
+    if (proxy) proxy.kill();
     wsService.close();
     server.close(() => {
       logger.info("Server closed");
@@ -110,6 +141,7 @@ async function setup(): Promise<void> {
   await registerMcp();
   await setupHooks();
   await setupAutoStart();
+  await setupShellEnv();
   console.log("\n✓ Setup complete! Open http://localhost:8787");
 }
 
@@ -199,10 +231,13 @@ async function setupAutoStart(): Promise<void> {
 
   if (os === "darwin") {
     await setupLaunchAgent(binaryPath);
+    await setupProxyLaunchAgent(binaryPath);
   } else if (os === "linux") {
     await setupSystemd(binaryPath);
+    await setupProxySystemd(binaryPath);
   } else if (os === "win32") {
     await setupWindowsTask(binaryPath);
+    await setupProxyWindowsTask(binaryPath);
   } else {
     console.log("  Auto-start not supported on this platform — start manually with: marionette start");
   }
@@ -256,6 +291,71 @@ WantedBy=default.target`;
   console.log("✓ Auto-start configured (systemd user service)");
 }
 
+// Detect which shell rc file to use
+function shellRcPath(): string | null {
+  const shell = process.env.SHELL ?? "";
+  if (shell.endsWith("zsh")) return join(homedir(), ".zshrc");
+  if (shell.endsWith("bash")) {
+    // macOS bash uses ~/.bash_profile; Linux uses ~/.bashrc
+    const profile = join(homedir(), ".bash_profile");
+    const rc = join(homedir(), ".bashrc");
+    return existsSync(profile) ? profile : rc;
+  }
+  return null;
+}
+
+const SHELL_ENV_MARKER = "# Added by Marionette";
+const SHELL_ENV_LINE = `export ANTHROPIC_BASE_URL="http://localhost:8788"`;
+
+async function setupShellEnv(): Promise<void> {
+  const rcPath = shellRcPath();
+  if (!rcPath) {
+    console.log("  Shell not detected — skipping ANTHROPIC_BASE_URL setup");
+    console.log(`  Add manually: export ANTHROPIC_BASE_URL="http://localhost:8788"`);
+    return;
+  }
+
+  let content = "";
+  try {
+    content = await readFile(rcPath, "utf-8");
+  } catch {
+    // file may not exist yet
+  }
+
+  if (content.includes(SHELL_ENV_LINE)) {
+    console.log(`✓ ANTHROPIC_BASE_URL already set in ${rcPath}`);
+    return;
+  }
+
+  const block = `\n${SHELL_ENV_MARKER}\n${SHELL_ENV_LINE}\n`;
+  await writeFile(rcPath, content + block);
+  console.log(`✓ ANTHROPIC_BASE_URL added to ${rcPath}`);
+  console.log(`  Reload with: source ${rcPath}`);
+}
+
+async function removeShellEnv(): Promise<void> {
+  const rcPath = shellRcPath();
+  if (!rcPath) return;
+
+  let content = "";
+  try {
+    content = await readFile(rcPath, "utf-8");
+  } catch {
+    return;
+  }
+
+  // Remove the marker line + env line (handle optional trailing newline)
+  const cleaned = content.replace(
+    new RegExp(`\\n?${SHELL_ENV_MARKER}\\n${SHELL_ENV_LINE}\\n?`, "g"),
+    ""
+  );
+
+  if (cleaned === content) return; // nothing to remove
+
+  await writeFile(rcPath, cleaned);
+  console.log(`✓ ANTHROPIC_BASE_URL removed from ${rcPath}`);
+}
+
 async function setupWindowsTask(binaryPath: string): Promise<void> {
   const ps = [
     `$action = New-ScheduledTaskAction -Execute "${binaryPath}" -Argument "start"`,
@@ -265,6 +365,65 @@ async function setupWindowsTask(binaryPath: string): Promise<void> {
 
   await execAsync(`powershell -Command "${ps.replace(/"/g, '\\"')}"`).catch(() => {});
   console.log("✓ Auto-start configured (Windows Scheduled Task)");
+}
+
+async function setupProxyLaunchAgent(binaryPath: string): Promise<void> {
+  const logsDir = join(homedir(), ".marionette", "logs");
+  mkdirSync(logsDir, { recursive: true });
+
+  const plistPath = join(
+    homedir(),
+    "Library",
+    "LaunchAgents",
+    "com.marionette.proxy.plist"
+  );
+
+  const plist = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.marionette.proxy</string>
+  <key>ProgramArguments</key>
+  <array><string>${binaryPath}</string><string>proxy</string></array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>${join(logsDir, "proxy.log")}</string>
+  <key>StandardErrorPath</key><string>${join(logsDir, "proxy.error.log")}</string>
+</dict></plist>`;
+
+  writeFileSync(plistPath, plist);
+  await execAsync(`launchctl load "${plistPath}"`).catch(() => {});
+  console.log("✓ Proxy auto-start configured (macOS LaunchAgent)");
+}
+
+async function setupProxySystemd(binaryPath: string): Promise<void> {
+  const systemdDir = join(homedir(), ".config", "systemd", "user");
+  mkdirSync(systemdDir, { recursive: true });
+
+  const servicePath = join(systemdDir, "marionette-proxy.service");
+  const unit = `[Unit]
+Description=Marionette - API Proxy
+
+[Service]
+ExecStart=${binaryPath} proxy
+Restart=always
+
+[Install]
+WantedBy=default.target`;
+
+  writeFileSync(servicePath, unit);
+  await execAsync("systemctl --user enable --now marionette-proxy").catch(() => {});
+  console.log("✓ Proxy auto-start configured (systemd user service)");
+}
+
+async function setupProxyWindowsTask(binaryPath: string): Promise<void> {
+  const ps = [
+    `$action = New-ScheduledTaskAction -Execute "${binaryPath}" -Argument "proxy"`,
+    `$trigger = New-ScheduledTaskTrigger -AtLogOn`,
+    `Register-ScheduledTask -TaskName "MarionetteProxy" -Action $action -Trigger $trigger -RunLevel Highest -Force`,
+  ].join("; ");
+
+  await execAsync(`powershell -Command "${ps.replace(/"/g, '\\"')}"`).catch(() => {});
+  console.log("✓ Proxy auto-start configured (Windows Scheduled Task)");
 }
 
 // ---------------------------------------------------------------------------
@@ -285,26 +444,46 @@ async function startMcp(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// proxy
+// ---------------------------------------------------------------------------
+
+async function startProxy(): Promise<void> {
+  const proxyPath = resolve(__dirname, "proxy/index.js");
+  if (existsSync(proxyPath)) {
+    await import(proxyPath);
+  } else {
+    console.error("API proxy not found at", proxyPath);
+    process.exit(1);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // stop
 // ---------------------------------------------------------------------------
 
 async function stop(): Promise<void> {
   const os = platform();
   if (os === "darwin") {
-    const plistPath = join(homedir(), "Library", "LaunchAgents", "com.marionette.app.plist");
-    await execAsync(`launchctl unload "${plistPath}"`).catch(() => {});
+    const appPlist = join(homedir(), "Library", "LaunchAgents", "com.marionette.app.plist");
+    const proxyPlist = join(homedir(), "Library", "LaunchAgents", "com.marionette.proxy.plist");
+    await execAsync(`launchctl unload "${appPlist}"`).catch(() => {});
+    await execAsync(`launchctl unload "${proxyPlist}"`).catch(() => {});
     console.log("✓ Auto-start removed (macOS)");
   } else if (os === "linux") {
-    await execAsync("systemctl --user disable --now marionette").catch(() => {});
+    await execAsync("systemctl --user disable --now marionette marionette-proxy").catch(() => {});
     console.log("✓ Auto-start removed (Linux)");
   } else if (os === "win32") {
     await execAsync(
       'powershell -Command "Unregister-ScheduledTask -TaskName Marionette -Confirm:$false"'
     ).catch(() => {});
+    await execAsync(
+      'powershell -Command "Unregister-ScheduledTask -TaskName MarionetteProxy -Confirm:$false"'
+    ).catch(() => {});
     console.log("✓ Auto-start removed (Windows)");
   } else {
     console.log("Auto-start not configured on this platform.");
   }
+  await removeShellEnv();
 }
 
 // ---------------------------------------------------------------------------
@@ -318,6 +497,7 @@ Usage:
   marionette start     Start the dashboard server (+ file watcher)
   marionette setup     Register MCP server in Claude Code + configure auto-start
   marionette mcp       Run the MCP server (invoked by Claude Code)
+  marionette proxy     Run the API proxy daemon (managed by auto-start)
   marionette stop      Remove auto-start configuration
 
 Dashboard: http://localhost:8787`);
@@ -338,6 +518,12 @@ switch (subcommand) {
     break;
   case "mcp":
     startMcp().catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
+    break;
+  case "proxy":
+    startProxy().catch((err) => {
       console.error(err);
       process.exit(1);
     });
