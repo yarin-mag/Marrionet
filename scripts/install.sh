@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Marionette one-liner installer for macOS and Linux
-# Usage: curl -fsSL https://raw.githubusercontent.com/yarin-mag/Marrionet/master/scripts/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/yarin-mag/Marionette/master/scripts/install.sh | bash
 set -euo pipefail
 
-REPO="yarin-mag/Marrionet"
+REPO="yarin-mag/Marionette"
 INSTALL_DIR="/usr/local/lib/marionette"
 BIN_LINK="/usr/local/bin/marionette"
 

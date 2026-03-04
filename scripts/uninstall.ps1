@@ -1,6 +1,6 @@
 # Marionette uninstaller for Windows (PowerShell)
 # Usage: .\scripts\uninstall.ps1
-#   or one-liner: irm https://raw.githubusercontent.com/yarin-mag/Marrionet/master/scripts/uninstall.ps1 | iex
+#   or one-liner: irm https://raw.githubusercontent.com/yarin-mag/Marionette/master/scripts/uninstall.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 

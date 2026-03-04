@@ -10,12 +10,12 @@ A dashboard that captures every conversation, token count, and tool call across 
 
 **macOS / Linux**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yarin-mag/Marrionet/master/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/yarin-mag/Marionette/master/scripts/install.sh | bash
 ```
 
 **Windows** (PowerShell)
 ```powershell
-irm https://raw.githubusercontent.com/yarin-mag/Marrionet/master/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/yarin-mag/Marionette/master/scripts/install.ps1 | iex
 ```
 
 This downloads the latest release, installs it to `/usr/local/lib/marionette`, registers the MCP server with Claude Code, and configures auto-start.
@@ -28,12 +28,12 @@ After installing, open **http://localhost:8787**.
 
 **macOS / Linux**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yarin-mag/Marrionet/master/scripts/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/yarin-mag/Marionette/master/scripts/uninstall.sh | bash
 ```
 
 **Windows** (PowerShell)
 ```powershell
-irm https://raw.githubusercontent.com/yarin-mag/Marrionet/master/scripts/uninstall.ps1 | iex
+irm https://raw.githubusercontent.com/yarin-mag/Marionette/master/scripts/uninstall.ps1 | iex
 ```
 
 This stops the running services, removes the MCP registration and hooks from Claude Code, clears the `ANTHROPIC_BASE_URL` environment variable, and deletes the installation directory.
@@ -47,7 +47,7 @@ This stops the running services, removes the MCP registration and hooks from Cla
 - pnpm 9+
 
 ```bash
-git clone https://github.com/yarin-mag/Marrionet.git
+git clone https://github.com/yarin-mag/Marionette.git
 cd marionette
 pnpm install
 ```

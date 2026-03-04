@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Marionette uninstaller for macOS and Linux
 # Usage: bash scripts/uninstall.sh
-#   or one-liner: curl -fsSL https://raw.githubusercontent.com/yarin-mag/Marrionet/master/scripts/uninstall.sh | bash
+#   or one-liner: curl -fsSL https://raw.githubusercontent.com/yarin-mag/Marionette/master/scripts/uninstall.sh | bash
 set -euo pipefail
 
 INSTALL_DIR="/usr/local/lib/marionette"

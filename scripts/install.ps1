@@ -1,11 +1,11 @@
 # Marionette installer for Windows (PowerShell)
-# Usage: irm https://raw.githubusercontent.com/yarin-mag/Marrionet/master/scripts/install.ps1 | iex
+# Usage: irm https://raw.githubusercontent.com/yarin-mag/Marionette/master/scripts/install.ps1 | iex
 #
 # Or save locally and run: .\scripts\install.ps1
 
 $ErrorActionPreference = "Stop"
 
-$Repo       = "yarin-mag/Marrionet"
+$Repo       = "yarin-mag/Marionette"
 $InstallDir = "$env:LOCALAPPDATA\marionette"
 $Platform   = "windows-x64"
 
