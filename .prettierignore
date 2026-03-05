@@ -1,0 +1,7 @@
+dist/
+build/
+out/
+node_modules/
+pnpm-lock.yaml
+*.db
+*.sql
