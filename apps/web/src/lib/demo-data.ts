@@ -253,7 +253,7 @@ export const DEMO_CONVERSATIONS: Record<string, EnrichedConversationTurn[]> = {
 
 // ─── LLM Calls ───────────────────────────────────────────────────────────────
 
-function makeCalls(agentId: string, count: number, model = "claude-sonnet-4-6") {
+function makeCalls(_agentId: string, count: number, model = "claude-sonnet-4-6") {
   return Array.from({ length: count }, (_, i) => ({
     ts: new Date(now - (count - i) * 5 * 60_000).toISOString(),
     summary: `llm.call #${i + 1}`,

@@ -35,7 +35,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build
+      - name: Build shared package
+        run: pnpm --filter @marionette/shared build
+
+      - name: Build web app
         working-directory: apps/web
         run: pnpm build
         env:
