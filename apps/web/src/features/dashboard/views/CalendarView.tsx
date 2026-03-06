@@ -4,6 +4,8 @@ import { format, parse, startOfWeek, getDay } from "date-fns";
 import { enUS } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
 import { calendarService, type AgentSession } from "../../../services/calendar.service";
+import { useDemoMode } from "../../../hooks/useDemoMode";
+import { DEMO_CALENDAR_SESSIONS } from "../../../lib/demo-data";
 import { usePersonalTasks } from "../hooks/usePersonalTasks";
 import { PersonalTaskModal } from "../components/PersonalTaskModal";
 import type { PersonalTask } from "../../../services/personal-tasks.service";
@@ -67,6 +69,7 @@ interface CalendarViewProps {
 }
 
 export function CalendarView({ onSessionClick }: CalendarViewProps) {
+  const isDemoMode = useDemoMode();
   const [date, setDate] = useState(new Date());
   const [view, setView] = useState<"month" | "week" | "day">("week");
   const [taskModal, setTaskModal] = useState<TaskModalState>({ open: false });
@@ -94,12 +97,26 @@ export function CalendarView({ onSessionClick }: CalendarViewProps) {
     return { start, end };
   }, [date, view]);
 
-  // Fetch agent sessions
-  const { data: sessions = [], isLoading } = useQuery({
+  // Demo sessions filtered to the visible date range
+  const demoSessions = useMemo(
+    () =>
+      isDemoMode
+        ? DEMO_CALENDAR_SESSIONS.filter(
+            (s) => s.startTime <= dateRange.end && s.endTime >= dateRange.start
+          )
+        : [],
+    [isDemoMode, dateRange]
+  );
+
+  // Fetch agent sessions (skipped in demo mode)
+  const { data: realSessions = [], isLoading } = useQuery({
     queryKey: ["calendar-sessions", dateRange.start.toISOString(), dateRange.end.toISOString()],
     queryFn: () => calendarService.getAgentSessions(dateRange.start, dateRange.end),
+    enabled: !isDemoMode,
     staleTime: 30000,
   });
+
+  const sessions = isDemoMode ? demoSessions : realSessions;
 
   // Fetch personal tasks for the current date range
   const { data: personalTasks = [] } = usePersonalTasks(dateRange.start, dateRange.end);
