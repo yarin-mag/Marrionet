@@ -4,6 +4,10 @@
 
 A dashboard that captures every conversation, token count, and tool call across all your Claude Code agents — automatically, with no changes to your workflow.
 
+[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://yarin-mag.github.io/Marionette/?demo=true)
+
+> **[Try the live demo →](https://yarin-mag.github.io/Marionette/?demo=true)** — no install required, runs entirely in the browser with mock data.
+
 ---
 
 ## Quick Start (for users)
