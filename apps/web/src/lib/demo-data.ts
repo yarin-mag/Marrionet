@@ -106,7 +106,7 @@ export const DEMO_AGENTS: AgentSnapshot[] = [
     agent_id: "demo-agent-5",
     agent_name: "Zion",
     status: "idle",
-    current_task: null,
+    current_task: undefined,
     last_activity: new Date(Date.now() - 28 * 60 * 1000).toISOString(),
     terminal: "Ghostty",
     cwd: "/Users/jordan/mobile-app",
