@@ -11,13 +11,14 @@ import { DEMO_AGENTS } from "../../../lib/demo-data";
 
 export function useAgents(statusFilter?: AgentStatus) {
   const isDemoMode = useDemoMode();
-  if (isDemoMode) {
-    const agents = statusFilter ? DEMO_AGENTS.filter((a) => a.status === statusFilter) : DEMO_AGENTS;
-    return { agents, loading: false, error: null, refetch: async () => {} };
-  }
   const queryClient = useQueryClient();
   const setAgents = useAgentsStore((state) => state.setAgents);
   const updateAgent = useAgentsStore((state) => state.updateAgent);
+
+  // Populate the Zustand store with mock data in demo mode
+  useEffect(() => {
+    if (isDemoMode) setAgents(DEMO_AGENTS);
+  }, [isDemoMode, setAgents]);
 
   // Query with automatic caching and offline support
   const {
@@ -27,6 +28,7 @@ export function useAgents(statusFilter?: AgentStatus) {
     refetch,
   } = useQuery({
     queryKey: [...QUERY_KEYS.agents, statusFilter],
+    enabled: !isDemoMode,
     queryFn: async (): Promise<AgentSnapshot[]> => {
       try {
         // Try network first
@@ -62,6 +64,8 @@ export function useAgents(statusFilter?: AgentStatus) {
 
   // WebSocket for real-time updates
   useEffect(() => {
+    if (isDemoMode) return;
+
     let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
     const unsubscribe = wsService.subscribe((message) => {
@@ -98,7 +102,12 @@ export function useAgents(statusFilter?: AgentStatus) {
       clearTimeout(debounceTimer);
       unsubscribe();
     };
-  }, [queryClient, updateAgent]);
+  }, [queryClient, updateAgent, isDemoMode]);
+
+  if (isDemoMode) {
+    const demoAgents = statusFilter ? DEMO_AGENTS.filter((a) => a.status === statusFilter) : DEMO_AGENTS;
+    return { agents: demoAgents, loading: false, error: null, refetch: async () => {} };
+  }
 
   return {
     agents,

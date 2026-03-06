@@ -6,23 +6,26 @@ import { useAgentsStore } from "../../agents/stores/agents.store";
 import { apiService } from "../../../services/api.service";
 import { QUERY_KEYS } from "../../../lib/constants";
 import type { AgentSession } from "../../../services/calendar.service";
+import { useDemoMode } from "../../../hooks/useDemoMode";
 
 type ViewMode = "grid" | "calendar" | "table" | "kanban" | "analytics" | "compare";
 
 const WS_POLL_INTERVAL_MS = 2_000;
 
 export function useMissionControlState() {
+  const isDemoMode = useDemoMode();
   const { agents, loading, error } = useAgents();
   const [clearing, setClearing] = useState(false);
   const [selectedSession, setSelectedSession] = useState<AgentSession | null>(null);
-  const [wsConnected, setWsConnected] = useState(wsService.isConnected);
+  const [wsConnected, setWsConnected] = useState(isDemoMode || wsService.isConnected);
 
   useEffect(() => {
+    if (isDemoMode) return;
     const interval = setInterval(() => {
       setWsConnected(wsService.isConnected);
     }, WS_POLL_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, []);
+  }, [isDemoMode]);
 
   const hideDisconnected = useAgentsStore((state) => state.hideDisconnected);
   const toggleHideDisconnected = useAgentsStore((state) => state.toggleHideDisconnected);
