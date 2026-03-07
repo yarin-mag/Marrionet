@@ -89,7 +89,7 @@ if not "%NODE_MAJOR%"=="20" (
   echo Fix: https://nodejs.org/en/download 1>&2
   exit /b 1
 )
-node "%~dp0..\dist\cli.js" %*
+node "%~dp0..\dist\cli\index.js" %*
 '@ | Set-Content "$ReleaseDir\bin\marionette.cmd" -Encoding ascii
 
 # sh wrapper for Git Bash / WSL users on Windows
@@ -102,7 +102,7 @@ if [ "$NODE_MAJOR" != "20" ]; then
   echo "Fix:  nvm install 20 && nvm use 20   or   https://nodejs.org/en/download" >&2
   exit 1
 fi
-exec node "$(dirname "$0")/../dist/cli.js" "$@"
+exec node "$(dirname "$0")/../dist/cli/index.js" "$@"
 '@ | Set-Content "$ReleaseDir\bin\marionette" -Encoding ascii
 
 # ── 6. Version file ───────────────────────────────────────────────────────────

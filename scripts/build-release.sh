@@ -116,7 +116,7 @@ fi
 # Resolve symlinks so dirname points to the real bin/ directory, not the symlink location
 SELF="$0"
 while [ -L "$SELF" ]; do SELF="$(readlink "$SELF")"; done
-exec node "$(dirname "$SELF")/../dist/cli.js" "$@"
+exec node "$(dirname "$SELF")/../dist/cli/index.js" "$@"
 WRAPPER
 chmod +x "${RELEASE_DIR}/bin/marionette"
 
@@ -130,7 +130,7 @@ if not "%NODE_MAJOR%"=="20" (
   echo Fix: https://nodejs.org/en/download 1>&2
   exit /b 1
 )
-node "%~dp0..\dist\cli.js" %*
+node "%~dp0..\dist\cli\index.js" %*
 WRAPPER
 
 # ── 7. Version file ───────────────────────────────────────────────────────────
