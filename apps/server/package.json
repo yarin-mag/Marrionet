@@ -1,9 +1,10 @@
 {
   "name": "marionette-server",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "bin": {
-    "marionette": "./dist/cli.js"
+    "marionette": "./dist/cli/index.js"
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",

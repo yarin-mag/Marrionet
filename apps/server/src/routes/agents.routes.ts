@@ -89,7 +89,7 @@ export function createAgentsRoutes(wsService?: WebSocketService, commandService?
       const candidatesPs = candidates.map((n) => `"${n}"`).join(", ");
 
       // When terminal is unknown we use cwd's basename to title-match VSCode windows
-      // (e.g. "Marrionet - Visual Studio Code"). This avoids focusing Warp when the
+      // (e.g. "Marionette - Visual Studio Code"). This avoids focusing Warp when the
       // user actually wants a VSCode window for the same project. Escape PS single-quotes.
       const projectName = cwd ? basename(cwd).replace(/'/g, "''") : "";
 
