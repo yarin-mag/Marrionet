@@ -16,7 +16,7 @@ export function createApp() {
     origin: (origin, callback) => {
       // Allow requests with no origin (curl, Electron shell, same-origin) and
       // any localhost / 127.0.0.1 origin on any port.
-      if (!origin || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      if (!origin || origin === "null" || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
         callback(null, true);
       } else {
         callback(new Error("CORS: origin not allowed"));
