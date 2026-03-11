@@ -80,25 +80,51 @@ export class AgentsController {
       eventRepo.findWithFilters({ agentId, type: "llm.call", limit: 1000 }),
     ]);
 
-    // Build lookup: "run_id:ts" → tokens
-    const llmMap = new Map<string, any>();
+    // Build per-run ordered list of llm.call token objects (sorted oldest→newest).
+    // The Nth llm.call in a run corresponds to the Nth assistant conversation.turn in that run.
+    const llmByRun = new Map<string, Array<{ tokens: unknown; ts: string }>>();
     for (const e of llmEvents) {
-      if (e.tokens && e.run_id && e.ts) {
-        llmMap.set(`${e.run_id}:${e.ts}`, e.tokens);
-      }
+      if (!e.run_id || !e.tokens) continue;
+      if (!llmByRun.has(e.run_id)) llmByRun.set(e.run_id, []);
+      llmByRun.get(e.run_id)!.push({ tokens: e.tokens, ts: e.ts ?? "" });
     }
+    for (const arr of llmByRun.values()) {
+      arr.sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0));
+    }
+
+    // Track how many assistant turns we've matched per run so we can index into the llm list.
+    const assistantCountByRun = new Map<string, number>();
 
     const turns = turnEvents.reverse().flatMap((e) => {
       const rawTurn = e.payload as Record<string, unknown> | null;
       if (!rawTurn || typeof rawTurn.role !== "string") return []; // skip malformed
       const turn = rawTurn as unknown as ConversationTurn;
-      if (turn.role === "assistant") {
-        const tokens = llmMap.get(`${e.run_id}:${e.ts}`);
-        if (tokens) return [{ ...turn, tokens }];
+      if (turn.role === "assistant" && e.run_id) {
+        const idx = assistantCountByRun.get(e.run_id) ?? 0;
+        assistantCountByRun.set(e.run_id, idx + 1);
+        const llmEntry = llmByRun.get(e.run_id)?.[idx];
+        if (llmEntry) return [{ ...turn, tokens: llmEntry.tokens }];
       }
       return [turn];
     });
 
-    res.json({ turns, total: turns.length });
+    // Compute conversation-level token totals across all matched llm.call events.
+    const allRunIds = [...new Set(turnEvents.map((e) => e.run_id).filter(Boolean))];
+    let totalInputTokens = 0, totalOutputTokens = 0, totalCostUsd = 0;
+    for (const runId of allRunIds) {
+      for (const entry of llmByRun.get(runId as string) ?? []) {
+        const t = entry.tokens as Record<string, number> | null;
+        if (!t) continue;
+        totalInputTokens  += t.input_tokens  ?? 0;
+        totalOutputTokens += t.output_tokens ?? 0;
+        totalCostUsd      += t.cost_usd      ?? 0;
+      }
+    }
+
+    res.json({
+      turns,
+      total: turns.length,
+      totals: { input_tokens: totalInputTokens, output_tokens: totalOutputTokens, cost_usd: totalCostUsd },
+    });
   }
 }

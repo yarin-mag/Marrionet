@@ -2,13 +2,21 @@ import { useEffect, useRef } from 'react';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { useAgentConversation } from '../hooks/useAgentConversation';
 import { ConversationMessage } from './ConversationMessage';
+import { formatTokens } from '../../../lib/utils';
+
+function formatCost(usd: number): string {
+  if (!isFinite(usd) || usd === 0) return "$0.00";
+  if (usd < 0.001) return `$${usd.toFixed(6)}`;
+  if (usd < 0.01) return `$${usd.toFixed(4)}`;
+  return `$${usd.toFixed(3)}`;
+}
 
 interface AgentConversationPanelProps {
   agentId: string;
 }
 
 export function AgentConversationPanel({ agentId }: AgentConversationPanelProps) {
-  const { turns, isLoading, error } = useAgentConversation(agentId);
+  const { turns, totals, isLoading, error } = useAgentConversation(agentId);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -26,14 +34,29 @@ export function AgentConversationPanel({ agentId }: AgentConversationPanelProps)
     );
   }
 
+  const hasTotals = totals && (totals.input_tokens > 0 || totals.output_tokens > 0);
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="p-4 border-b bg-card">
         <h2 className="text-lg font-semibold">Conversation</h2>
-        <p className="text-sm text-muted-foreground">
-          {turns.length} {turns.length === 1 ? 'message' : 'messages'}
-        </p>
+        <div className="flex items-center gap-3 flex-wrap">
+          <p className="text-sm text-muted-foreground">
+            {turns.length} {turns.length === 1 ? 'message' : 'messages'}
+          </p>
+          {hasTotals && (
+            <>
+              <span className="text-muted-foreground/40 text-xs">·</span>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                ↑ {formatTokens(totals.input_tokens)} · ↓ {formatTokens(totals.output_tokens)}
+              </span>
+              <span className="text-xs text-emerald-500/80 tabular-nums font-medium">
+                {formatCost(totals.cost_usd)}
+              </span>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Error banner */}

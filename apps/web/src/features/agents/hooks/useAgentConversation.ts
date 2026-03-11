@@ -9,8 +9,15 @@ export interface EnrichedConversationTurn extends ConversationTurn {
   tokens?: TokenUsage;
 }
 
+export interface ConversationTotals {
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+}
+
 interface UseAgentConversationResult {
   turns: EnrichedConversationTurn[];
+  totals: ConversationTotals | null;
   isLoading: boolean;
   error: string | null;
 }
@@ -18,6 +25,7 @@ interface UseAgentConversationResult {
 export function useAgentConversation(agentId: string): UseAgentConversationResult {
   const isDemoMode = useDemoMode();
   const [turns, setTurns] = useState<EnrichedConversationTurn[]>([]);
+  const [totals, setTotals] = useState<ConversationTotals | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,6 +45,7 @@ export function useAgentConversation(agentId: string): UseAgentConversationResul
         const data = await res.json();
         if (cancelled) return;
         setTurns(data.turns || []);
+        setTotals(data.totals ?? null);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load conversation');
       } finally {
@@ -48,5 +57,5 @@ export function useAgentConversation(agentId: string): UseAgentConversationResul
     return () => { cancelled = true; };
   }, [agentId, isDemoMode]);
 
-  return { turns, isLoading, error };
+  return { turns, totals, isLoading, error };
 }
