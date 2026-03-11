@@ -1,4 +1,5 @@
 import { platform } from "os";
+import { spawnSync } from "child_process";
 import { getVersion } from "./utils.js";
 
 export async function update(): Promise<void> {
@@ -19,11 +20,27 @@ export async function update(): Promise<void> {
     } else {
       console.log(`\n  New version available: ${latest}`);
       console.log(`  Release notes: ${data.html_url}`);
-      console.log("\n  To upgrade, re-run the installer:");
+      console.log("\n  Running installer...\n");
+
+      let result;
       if (platform() === "win32") {
-        console.log(`    irm https://raw.githubusercontent.com/yarin-mag/Marionette/master/scripts/install.ps1 | iex`);
+        result = spawnSync(
+          "powershell",
+          ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
+            "irm https://raw.githubusercontent.com/yarin-mag/Marionette/master/scripts/install.ps1 | iex"],
+          { stdio: "inherit" }
+        );
       } else {
-        console.log(`    curl -fsSL https://raw.githubusercontent.com/yarin-mag/Marionette/master/scripts/install.sh | bash`);
+        result = spawnSync(
+          "bash",
+          ["-c", "curl -fsSL https://raw.githubusercontent.com/yarin-mag/Marionette/master/scripts/install.sh | bash"],
+          { stdio: "inherit" }
+        );
+      }
+
+      if (result.status !== 0) {
+        console.error("\nInstaller exited with an error.");
+        process.exit(result.status ?? 1);
       }
     }
   } catch (err) {
