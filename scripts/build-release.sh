@@ -82,7 +82,8 @@ npm install --prefix "${RELEASE_DIR}" --production --legacy-peer-deps \
   "express@^4" \
   "dotenv@^16" \
   "chokidar@^4" \
-  "@modelcontextprotocol/sdk@^1"
+  "@modelcontextprotocol/sdk@^1" \
+  "@anthropic-ai/tokenizer@^0.0.4"
 
 # Inject @marionette/shared as a local module so MCP server can import it
 SHARED_TARGET="${RELEASE_DIR}/node_modules/@marionette/shared"

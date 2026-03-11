@@ -58,7 +58,7 @@ Write-Host "==> Installing production dependencies..."
 "@ | Set-Content "$ReleaseDir\package.json"
 
 npm install --prefix $ReleaseDir --production --legacy-peer-deps `
-    "better-sqlite3@^11" "ws@^8" "cors@^2" "express@^4" "dotenv@^16" "chokidar@^4" "@modelcontextprotocol/sdk@^1"
+    "better-sqlite3@^11" "ws@^8" "cors@^2" "express@^4" "dotenv@^16" "chokidar@^4" "@modelcontextprotocol/sdk@^1" "@anthropic-ai/tokenizer@^0.0.4"
 
 # Inject @marionette/shared
 $sharedTarget = "$ReleaseDir\node_modules\@marionette\shared"
