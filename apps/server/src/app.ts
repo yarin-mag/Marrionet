@@ -19,6 +19,7 @@ export function createApp() {
       if (!origin || origin === "null" || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
         callback(null, true);
       } else {
+        logger.warn(`CORS blocked origin: "${origin}"`);
         callback(new Error("CORS: origin not allowed"));
       }
     },
