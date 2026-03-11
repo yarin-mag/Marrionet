@@ -170,6 +170,13 @@ export class AgentRepository extends BaseRepository {
     );
   }
 
+  async updateCurrentRun(agentId: string, runId: string): Promise<void> {
+    await this.query(
+      "UPDATE agents SET current_run_id = $1, updated_at = CURRENT_TIMESTAMP WHERE agent_id = $2",
+      [runId, agentId]
+    );
+  }
+
   // ─── Deletes ──────────────────────────────────────────────────────────────
 
   /**

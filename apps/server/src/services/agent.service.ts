@@ -69,7 +69,9 @@ export class AgentService {
     const duration = event.duration_ms ?? 0;
 
     // Increment event-type specific counters
-    if (event.type === "run.ended") {
+    if (event.type === "run.started" && event.run_id) {
+      await this.repository.updateCurrentRun(event.agent_id, event.run_id);
+    } else if (event.type === "run.ended") {
       await this.repository.incrementRuns(event.agent_id);
     } else if (event.type === "task.started") {
       await this.repository.incrementTasks(event.agent_id);
