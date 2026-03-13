@@ -24,6 +24,19 @@ export type AgentStatus =
   | "disconnected" // Claude process exited/killed
   | "awaiting_input"; // Claude is waiting for user input/confirmation
 
+/** Named constants for every AgentStatus value — use instead of raw string literals. */
+export const AGENT_STATUS = {
+  STARTING: "starting",
+  IDLE: "idle",
+  WORKING: "working",
+  BLOCKED: "blocked",
+  ERROR: "error",
+  FINISHED: "finished",
+  CRASHED: "crashed",
+  DISCONNECTED: "disconnected",
+  AWAITING_INPUT: "awaiting_input",
+} as const satisfies Record<string, AgentStatus>;
+
 export type TaskStatus =
   | "pending"
   | "running"

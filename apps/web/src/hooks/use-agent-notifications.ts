@@ -1,61 +1,98 @@
 import { useEffect, useRef, useMemo } from "react";
 import type { AgentSnapshot, AgentStatus } from "@marionette/shared";
+import { AGENT_STATUS } from "@marionette/shared";
+import { loadPreferences } from "../lib/user-preferences";
+import { AWAITING_INPUT_DEBOUNCE_MS } from "../lib/notification-constants";
 
-function fireNotification(agent: AgentSnapshot) {
+async function fireNotification(title: string, body: string): Promise<void> {
   if (typeof Notification === "undefined") return;
-  if (Notification.permission === "granted") {
-    new Notification(agent.agent_name ?? agent.agent_id, {
-      body:
-        agent.status === "awaiting_input"
-          ? "Waiting for your input"
-          : "An error occurred",
-      icon: "/favicon.ico",
-    });
-  } else if (Notification.permission === "default") {
-    Notification.requestPermission().then((p) => {
-      if (p === "granted") fireNotification(agent);
-    });
+  if (Notification.permission === "default") {
+    await Notification.requestPermission();
   }
+  if (Notification.permission !== "granted") return;
+  new Notification(title, { body, icon: "/favicon.ico" });
 }
 
 /**
- * Watches for agent status transitions to `awaiting_input` or `error` and fires
- * a browser notification when one occurs.
+ * Watches agent status transitions and fires configurable browser notifications.
  *
- * Uses a stable derived key (sorted "id:status" pairs) as the effect dependency so
- * the effect only runs when statuses actually change, not on every React Query refetch
- * that returns a new array reference with identical data.
+ * Which events notify is controlled by the user's notification preferences in localStorage.
+ * `awaiting_input` is debounced so rapid back-and-forth transitions don't spam the user —
+ * the notification only fires if the agent stays in that state for AWAITING_INPUT_DEBOUNCE_MS.
  */
 export function useAgentNotifications(agents: AgentSnapshot[]) {
-  const prevStatuses = useRef<Record<string, AgentStatus>>({});
+  const prevStatuses = useRef<Record<string, AgentStatus | undefined>>({});
+  // One pending debounce timer per agent — cancelled on every status change
+  const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
-  // Stable string that only changes when an agent's status changes.
+  // Stable string that only changes when an agent's status actually changes
   const statusKey = useMemo(
-    () =>
-      agents
-        .map((a) => `${a.agent_id}:${a.status}`)
-        .sort()
-        .join("|"),
+    () => agents.map((a) => `${a.agent_id}:${a.status}`).sort().join("|"),
     [agents]
   );
 
   useEffect(() => {
-    // Prune entries for agents no longer present
+    const { notifications: prefs } = loadPreferences();
     const currentIds = new Set(agents.map((a) => a.agent_id));
+
+    // Prune agents no longer present and cancel their pending timers
     for (const id of Object.keys(prevStatuses.current)) {
-      if (!currentIds.has(id)) delete prevStatuses.current[id];
+      if (currentIds.has(id)) continue;
+      clearTimeout(debounceTimers.current[id]);
+      delete debounceTimers.current[id];
+      delete prevStatuses.current[id];
     }
 
     for (const agent of agents) {
       const prev = prevStatuses.current[agent.agent_id];
       const curr = agent.status;
-      if (prev && prev !== curr) {
-        if (curr === "awaiting_input" || curr === "error") {
-          fireNotification(agent);
-        }
-      }
       prevStatuses.current[agent.agent_id] = curr;
+
+      if (prev === curr) continue;
+
+      // Always cancel any pending debounce when status changes
+      clearTimeout(debounceTimers.current[agent.agent_id]);
+      delete debounceTimers.current[agent.agent_id];
+
+      const name = agent.agent_name ?? agent.agent_id;
+
+      // New agent seen for the first time
+      if (prev === undefined) {
+        if (prefs.agentStarted) void fireNotification(name, "New agent session started");
+        continue;
+      }
+
+      if (curr === AGENT_STATUS.AWAITING_INPUT && prefs.awaitingInput) {
+        debounceTimers.current[agent.agent_id] = setTimeout(
+          () => void fireNotification(name, "Waiting for your input"),
+          AWAITING_INPUT_DEBOUNCE_MS
+        );
+        continue;
+      }
+
+      if ((curr === AGENT_STATUS.FINISHED || curr === AGENT_STATUS.DISCONNECTED) && prefs.agentFinished) {
+        void fireNotification(name, "Agent session finished");
+        continue;
+      }
+
+      if (curr === AGENT_STATUS.ERROR && prefs.agentError) {
+        void fireNotification(name, "An error occurred");
+        continue;
+      }
+
+      if (curr === AGENT_STATUS.CRASHED && prefs.agentError) {
+        void fireNotification(name, "Agent crashed");
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusKey]);
+
+  // Cancel all pending timers on unmount
+  useEffect(() => {
+    return () => {
+      for (const timer of Object.values(debounceTimers.current)) {
+        clearTimeout(timer);
+      }
+    };
+  }, []);
 }

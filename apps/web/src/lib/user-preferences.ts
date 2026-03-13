@@ -4,11 +4,26 @@
  */
 import { API_URL } from "./constants";
 
+export interface NotificationPreferences {
+  awaitingInput: boolean;
+  agentFinished: boolean;
+  agentError: boolean;
+  agentStarted: boolean;
+}
+
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  awaitingInput: true,
+  agentFinished: false,
+  agentError: true,
+  agentStarted: false,
+};
+
 export interface UserPreferences {
   agentDetailView: "modal" | "sidecard";
   theme?: "light" | "dark" | "system";
   calendarClickToAdd: boolean;
   mcpSetTaskEnabled?: boolean;
+  notifications: NotificationPreferences;
 }
 
 const STORAGE_KEY = "marionette_user_preferences";
@@ -17,6 +32,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   agentDetailView: "modal",
   theme: "system",
   calendarClickToAdd: false,
+  notifications: DEFAULT_NOTIFICATION_PREFERENCES,
 };
 
 /**
@@ -27,7 +43,14 @@ export function loadPreferences(): UserPreferences {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      return { ...DEFAULT_PREFERENCES, ...parsed };
+      return {
+        ...DEFAULT_PREFERENCES,
+        ...parsed,
+        notifications: {
+          ...DEFAULT_NOTIFICATION_PREFERENCES,
+          ...(parsed.notifications ?? {}),
+        },
+      };
     }
   } catch (error) {
     console.error("Failed to load user preferences:", error);
