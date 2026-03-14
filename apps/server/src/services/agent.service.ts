@@ -152,8 +152,6 @@ export class AgentService {
       current_task?: string | null;
       notes?: string | null;
       process_pid?: number | null;
-      token_budget?: number | null;
-      cost_budget_usd?: number | null;
     }
   ): Promise<Record<string, any>> {
     const agent = await this.repository.findById(agentId);
@@ -169,8 +167,6 @@ export class AgentService {
     if (updates.jira_tickets !== undefined) metadata.jira_tickets = updates.jira_tickets;
     if (updates.notes !== undefined) metadata.notes = updates.notes;
     if (updates.process_pid !== undefined) metadata.process_pid = updates.process_pid;
-    if (updates.token_budget !== undefined) metadata.token_budget = updates.token_budget;
-    if (updates.cost_budget_usd !== undefined) metadata.cost_budget_usd = updates.cost_budget_usd;
 
     await this.repository.updateMetadata(agentId, metadata);
 

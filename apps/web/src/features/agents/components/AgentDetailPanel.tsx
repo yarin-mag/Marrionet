@@ -1,7 +1,6 @@
 import type { AgentSnapshot } from "@marionette/shared";
 import { X, Zap, TrendingUp, Activity, Search, MessagesSquare, RotateCcw, Trash2, ExternalLink, Square } from "lucide-react";
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
 import { Button } from "../../../components/ui/button";
 import { Badge } from "../../../components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../../components/ui/tabs";
@@ -17,7 +16,7 @@ import { useAgentUpdate } from "../hooks/useAgentUpdate";
 import { useAgentDelete } from "../hooks/useAgentDelete";
 import { useAgentNotes } from "../hooks/useAgentNotes";
 import { useAgentKill, useAgentFocus } from "../hooks/useAgentActions";
-import { apiService } from "../../../services/api.service";
+import { TokenAlertsSection } from "./TokenAlertsSection";
 
 type TabValue = 'overview' | 'conversation' | 'inspect';
 
@@ -34,10 +33,6 @@ export function AgentDetailPanel({ agent, onClose, hideCloseButton }: AgentDetai
   const { mutate: saveNotes } = useAgentNotes(agent.agent_id);
   const { mutate: kill, isPending: isKilling, error: killError } = useAgentKill(agent.agent_id);
   const { mutate: focus, isPending: isFocusing, error: focusError } = useAgentFocus(agent.agent_id);
-  const { mutate: saveBudget, isError: isBudgetError } = useMutation({
-    mutationFn: (fields: { token_budget?: number | null; cost_budget_usd?: number | null }) =>
-      apiService.updateAgent(agent.agent_id, fields),
-  });
   const [activeTab, setActiveTab] = useState<TabValue>('overview');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmKill, setConfirmKill] = useState(false);
@@ -126,45 +121,8 @@ export function AgentDetailPanel({ agent, onClose, hideCloseButton }: AgentDetai
             />
           </div>
 
-          {/* Budget alerts */}
-          <div className="pt-2">
-            <p className="text-xs text-muted-foreground mb-1">Budget alerts</p>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <p className="text-xs text-muted-foreground/70 mb-0.5">Token limit</p>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  key={`tb-${agent.agent_id}`}
-                  defaultValue={(agent.metadata as Record<string, unknown>)?.token_budget as number ?? ""}
-                  onBlur={(e) =>
-                    saveBudget({ token_budget: e.target.value ? Math.max(0, Number(e.target.value)) : null })
-                  }
-                  placeholder="e.g. 100000"
-                  className="w-full text-sm bg-muted/30 border border-border/50 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary/50"
-                />
-              </div>
-              <div className="flex-1">
-                <p className="text-xs text-muted-foreground/70 mb-0.5">Cost limit (USD)</p>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  key={`cb-${agent.agent_id}`}
-                  defaultValue={(agent.metadata as Record<string, unknown>)?.cost_budget_usd as number ?? ""}
-                  onBlur={(e) =>
-                    saveBudget({ cost_budget_usd: e.target.value ? Math.max(0, Number(e.target.value)) : null })
-                  }
-                  placeholder="e.g. 2.50"
-                  className="w-full text-sm bg-muted/30 border border-border/50 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary/50"
-                />
-              </div>
-            </div>
-            {isBudgetError && (
-              <p className="text-xs text-destructive mt-1">Failed to save budget. Please try again.</p>
-            )}
-          </div>
+          {/* Token alerts */}
+          <TokenAlertsSection agentId={agent.agent_id} />
 
           {/* Agent Controls */}
           <div className="flex flex-wrap items-center gap-2 pt-1">

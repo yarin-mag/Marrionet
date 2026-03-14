@@ -17,6 +17,7 @@ import { SessionDetail } from "./SessionDetail";
 import { Sheet, SheetContent } from "../../../components/ui/sheet";
 import { useUserPreferences } from "../../../hooks/use-user-preferences";
 import { useAgentNotifications } from "../../../hooks/use-agent-notifications";
+import { useTokenAlertNotifications } from "../../../hooks/use-token-alert-notifications";
 import { useMissionControlState } from "../hooks/useMissionControlState";
 import { useAgentsStore } from "../../agents/stores/agents.store";
 import { useDemoMode } from "../../../hooks/useDemoMode";
@@ -49,6 +50,7 @@ export function MissionControl() {
   const { compareSet } = useAgentsStore();
   const isDemoMode = useDemoMode();
   useAgentNotifications(agents);
+  useTokenAlertNotifications(agents);
 
   if (loading && agents.length === 0) {
     return (

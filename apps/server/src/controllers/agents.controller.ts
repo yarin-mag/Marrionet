@@ -52,7 +52,7 @@ export class AgentsController {
 
   async updateMetadata(req: Request, res: Response) {
     const { agentId } = req.params;
-    const { custom_name, labels, jira_tickets, source_file, current_task, notes, process_pid, token_budget, cost_budget_usd } = req.body;
+    const { custom_name, labels, jira_tickets, source_file, current_task, notes, process_pid } = req.body;
 
     const metadata = await this.service.updateMetadata(agentId, {
       custom_name,
@@ -62,8 +62,6 @@ export class AgentsController {
       current_task,
       notes,
       process_pid,
-      token_budget,
-      cost_budget_usd,
     });
 
     this.wsService?.broadcastToDashboard({ type: "agents_updated" });

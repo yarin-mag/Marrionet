@@ -43,8 +43,6 @@ class ApiService {
       labels?: string[];
       jira_tickets?: string[];
       notes?: string | null;
-      token_budget?: number | null;
-      cost_budget_usd?: number | null;
     }
   ): Promise<void> {
     const res = await fetch(`${this.baseUrl}/api/agents/${agentId}`, {

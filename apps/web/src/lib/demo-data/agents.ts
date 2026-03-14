@@ -22,7 +22,6 @@ export const DEMO_AGENTS: AgentSnapshot[] = [
     metadata: {
       custom_name: "Aria",
       labels: ["auth", "backend"],
-      token_budget: 500_000,
     },
   },
   {

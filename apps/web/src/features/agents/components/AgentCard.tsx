@@ -9,7 +9,6 @@ import { formatTime, formatTokens, formatDuration, formatBurnRate, cn } from "..
 import { useAgentDisplay } from "../hooks/useAgentDisplay";
 import { useAgentUpdate } from "../hooks/useAgentUpdate";
 import { useAgentErrors } from "../hooks/useAgentErrors";
-import { useAgentLlmCalls } from "../hooks/useAgentLlmCalls";
 import { useNow } from "../../../hooks/use-live-timer";
 import { useAgentsStore } from "../stores/agents.store";
 
@@ -61,18 +60,10 @@ export const AgentCard = memo(function AgentCard({ agent, onClick }: AgentCardPr
   const { displayName, hasCustomName, statusConfig, isDisconnected } =
     useAgentDisplay(agent);
   const { mutate: updateName } = useAgentUpdate(agent.agent_id);
-  const { stats: llmStats } = useAgentLlmCalls(agent.agent_id);
   const now = useNow();
   const [errorsOpen, setErrorsOpen] = useState(false);
   const { compareSet, toggleCompare } = useAgentsStore();
   const isCompared = compareSet.includes(agent.agent_id);
-
-  const meta = agent.metadata as Record<string, unknown> | null | undefined;
-  const tokenBudget = meta?.token_budget as number | undefined;
-  const costBudget = meta?.cost_budget_usd as number | undefined;
-  const overBudget =
-    (tokenBudget != null && agent.session_tokens > tokenBudget) ||
-    (costBudget != null && llmStats.totalCostUsd > costBudget);
 
   // Reset expanded errors panel when the card switches to a different agent
   useEffect(() => {
@@ -89,8 +80,7 @@ export const AgentCard = memo(function AgentCard({ agent, onClick }: AgentCardPr
         statusConfig.border,
         statusConfig.bg,
         agent.status === "working" && "border-l-glow-working",
-        isDisconnected && "opacity-60 grayscale transition-[opacity,filter] duration-500",
-        overBudget && "ring-2 ring-destructive/60"
+        isDisconnected && "opacity-60 grayscale transition-[opacity,filter] duration-500"
       )}
     >
       {/* Compare checkbox — visible on hover or when selected */}
@@ -250,13 +240,6 @@ export const AgentCard = memo(function AgentCard({ agent, onClick }: AgentCardPr
           >
             <AgentErrorList agentId={agent.agent_id} />
           </div>
-        )}
-
-        {/* Over budget indicator */}
-        {overBudget && (
-          <span className="text-xs text-destructive font-medium flex items-center gap-1">
-            <AlertTriangle className="h-3 w-3" /> Over budget
-          </span>
         )}
 
         {/* Last Activity */}
