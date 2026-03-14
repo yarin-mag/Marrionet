@@ -32,7 +32,7 @@ export function AgentOverviewTab({ agent }: AgentOverviewTabProps) {
         statusSince={agent.status_since}
       />
       <OverviewStats agent={agent} />
-      <OverviewEnvironment agent={agent} lastModel={llmStats.lastModel} />
+      <OverviewEnvironment agent={agent} lastModel={llmStats.lastModel ?? undefined} />
       <OverviewActivity agent={agent} now={now} />
       {agent.metadata && typeof agent.metadata === 'object' && Object.keys(agent.metadata).length > 0 && (
         <GlassCard className="p-4">
