@@ -53,12 +53,11 @@ module.exports = function bootstrap() {
 };
 
 function download(url, dest, callback) {
-  const file = fs.createWriteStream(dest);
-
   function get(urlStr) {
     https.get(urlStr, (res) => {
-      if (res.statusCode === 301 || res.statusCode === 302) {
-        file.destroy();
+      // Follow redirects (GitHub releases redirect to CDN)
+      if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307 || res.statusCode === 308) {
+        res.resume(); // drain so connection is released
         get(res.headers.location);
         return;
       }
@@ -67,6 +66,7 @@ function download(url, dest, callback) {
         process.exit(1);
       }
 
+      const file = fs.createWriteStream(dest);
       const total = parseInt(res.headers['content-length'] || '0', 10);
       let received = 0;
 
@@ -84,6 +84,11 @@ function download(url, dest, callback) {
           if (total) process.stdout.write('\n');
           callback();
         });
+      });
+      file.on('error', (err) => {
+        fs.unlink(dest, () => {});
+        console.error(`Write error: ${err.message}`);
+        process.exit(1);
       });
     }).on('error', (err) => {
       fs.unlink(dest, () => {});
