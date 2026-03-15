@@ -39,7 +39,15 @@ module.exports = function bootstrap() {
     fs.mkdirSync(installDir, { recursive: true });
 
     if (isWindows) {
-      execSync(`tar -xf "${tmpFile}" -C "${installDir}" --strip-components=1`, { stdio: 'inherit' });
+      const tmpExtract = path.join(os.tmpdir(), 'marionette-extract');
+      try { execSync(`rmdir /S /Q "${tmpExtract}"`, { stdio: 'pipe' }); } catch (_) {}
+      execSync(
+        `powershell -NoProfile -Command "Expand-Archive -Force -Path '${tmpFile}' -DestinationPath '${tmpExtract}'"`,
+        { stdio: 'inherit' }
+      );
+      const inner = path.join(tmpExtract, 'marionette');
+      execSync(`xcopy /E /I /Y "${inner}" "${installDir}"`, { stdio: 'inherit' });
+      try { execSync(`rmdir /S /Q "${tmpExtract}"`, { stdio: 'pipe' }); } catch (_) {}
     } else {
       execSync(`tar -xzf "${tmpFile}" -C "${installDir}" --strip-components=1`, { stdio: 'inherit' });
       fs.chmodSync(realBin, 0o755);
