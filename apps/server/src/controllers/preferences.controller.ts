@@ -5,6 +5,7 @@ const ALLOWED_PREFERENCE_KEYS = new Set([
   "mcpSetTaskEnabled",
   "mcpJiraEnabled",
   "calendarClickToAdd",
+  "discordWebhookUrl",
 ]);
 
 export class PreferencesController {

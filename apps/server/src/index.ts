@@ -28,12 +28,13 @@ async function main() {
   // Start HTTP server
   const server = app.listen(config.port, () => {
     logger.info(`Server listening on http://localhost:${config.port}`);
-    logger.info(`WebSocket: ws://localhost:${config.port}/stream`);
+    logger.info(`SSE stream: http://localhost:${config.port}/stream`);
   });
 
-  // Initialize WebSocket service
+  // Initialize WebSocket service (agent-stream) + SSE dashboard stream
   const wsService = new WebSocketService(server);
   wsService.start();
+  app.get("/stream", (req, res) => wsService.handleSseConnection(req, res));
 
   // Initialize shared service instances
   const agentService = new AgentService();

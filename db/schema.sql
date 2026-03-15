@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS agents (
     session_tokens INTEGER DEFAULT 0,
     source_file TEXT,
     parent_agent_id TEXT REFERENCES agents(agent_id) ON DELETE SET NULL,
+    is_subagent INTEGER DEFAULT 0,
     status_since TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

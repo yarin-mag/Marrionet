@@ -57,35 +57,6 @@ export function NotificationsSection({ notifications, onUpdate }: NotificationsS
           />
         </div>
 
-        <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
-
-        <div className="flex items-center justify-between gap-4">
-          <div className="space-y-1">
-            <Label className="text-base font-semibold">Agent error or crash</Label>
-            <p className="text-xs text-muted-foreground">
-              Fires when an agent encounters an error or crashes unexpectedly.
-            </p>
-          </div>
-          <Switch
-            checked={notifications.agentError}
-            onCheckedChange={(value) => toggle("agentError", value)}
-          />
-        </div>
-
-        <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
-
-        <div className="flex items-center justify-between gap-4">
-          <div className="space-y-1">
-            <Label className="text-base font-semibold">New agent started</Label>
-            <p className="text-xs text-muted-foreground">
-              Fires when a new Claude Code session is detected for the first time.
-            </p>
-          </div>
-          <Switch
-            checked={notifications.agentStarted}
-            onCheckedChange={(value) => toggle("agentStarted", value)}
-          />
-        </div>
       </CardContent>
     </Card>
   );

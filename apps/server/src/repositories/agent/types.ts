@@ -22,6 +22,7 @@ export interface DbAgentRow {
   status_since: string | null;
   source_file: string | null;
   parent_agent_id: string | null;
+  is_subagent: number;
   metadata: string | null;
 }
 

@@ -72,10 +72,12 @@ export class EventService {
     // Insert event into database
     await this.repository.insert({ ...effectiveEvent, ts });
 
-    // Fire Discord notification for terminal statuses (fire-and-forget)
+    // Fire Discord notification for terminal statuses (fire-and-forget).
     if (effectiveEvent.agent_id && effectiveEvent.status) {
       this.agentService.getAgent(effectiveEvent.agent_id).then((agent) => {
-        if (agent && !agent.parent_agent_id) this.notificationService.notifyAgentStatus(agent, effectiveEvent);
+        if (agent && !agent.is_subagent && !agent.parent_agent_id) {
+          this.notificationService.notifyAgentStatus(agent, effectiveEvent);
+        }
       }).catch(() => {});
     }
 
@@ -118,6 +120,12 @@ export class EventService {
    */
   async processBatch(events: MarionetteEvent[]): Promise<BatchResult> {
     const sorted = [...events].sort((a, b) => {
+      // agent.started must be processed before any status events in the same batch
+      // so that is_subagent is set before notification checks run. This matters because
+      // agent.started falls back to new Date() when the JSONL entry has no timestamp,
+      // which can sort it AFTER historical entries (turn_duration etc.) in the same file.
+      if (a.type === 'agent.started' && b.type !== 'agent.started') return -1;
+      if (a.type !== 'agent.started' && b.type === 'agent.started') return 1;
       const ta = a.ts ?? "";
       const tb = b.ts ?? "";
       return ta < tb ? -1 : ta > tb ? 1 : 0;

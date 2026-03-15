@@ -2,12 +2,12 @@ import { WebSocketServer, WebSocket } from "ws";
 import type { Server } from "http";
 import type { IncomingMessage } from "http";
 import type { Socket } from "net";
+import type { Request, Response } from "express";
 import type { MarionetteEvent } from "@marionette/shared";
 import { EventService } from "./event.service.js";
 import { logger } from "../utils/logger.js";
 
-type WsClientType = "dashboard" | "agent";
-type ExtendedWebSocket = WebSocket & { _type?: WsClientType; isAlive?: boolean };
+type ExtendedWebSocket = WebSocket & { isAlive?: boolean };
 
 interface WsIncomingMessage {
   type: string;
@@ -19,6 +19,7 @@ export class WebSocketService {
   private wss: WebSocketServer;
   private eventService: EventService;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private sseClients: Map<Response, ReturnType<typeof setInterval>> = new Map();
 
   constructor(httpServer: Server, eventService?: EventService) {
     this.httpServer = httpServer;
@@ -52,11 +53,7 @@ export class WebSocketService {
       try {
         const pathname = new URL(request.url!, `http://${request.headers.host}`).pathname;
 
-        if (pathname === "/stream") {
-          this.wss.handleUpgrade(request, socket, head, (ws) => {
-            this.handleDashboardConnection(ws as ExtendedWebSocket);
-          });
-        } else if (pathname === "/agent-stream") {
+        if (pathname === "/agent-stream") {
           this.wss.handleUpgrade(request, socket, head, (ws) => {
             this.handleAgentConnection(ws as ExtendedWebSocket);
           });
@@ -71,20 +68,32 @@ export class WebSocketService {
     });
   }
 
-  private handleDashboardConnection(ws: ExtendedWebSocket): void {
-    logger.info("Dashboard client connected");
-    ws._type = "dashboard";
-    ws.isAlive = true;
-    ws.on("pong", () => { ws.isAlive = true; });
-    ws.send(JSON.stringify({ type: "hello", data: { ok: true } }));
+  handleSseConnection(req: Request, res: Response): void {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders();
+
     // Immediately sync agent state so the dashboard doesn't miss agents that
-    // connected before the WS subscription was established.
-    ws.send(JSON.stringify({ type: "agents_updated" }));
+    // connected before the SSE subscription was established.
+    res.write(`data: ${JSON.stringify({ type: "agents_updated" })}\n\n`);
+
+    const keepalive = setInterval(() => {
+      res.write(": keepalive\n\n");
+    }, 30_000);
+
+    this.sseClients.set(res, keepalive);
+    logger.info("SSE dashboard client connected");
+
+    req.on("close", () => {
+      clearInterval(keepalive);
+      this.sseClients.delete(res);
+      logger.info("SSE dashboard client disconnected");
+    });
   }
 
   private handleAgentConnection(ws: ExtendedWebSocket): void {
     logger.info("Agent connected");
-    ws._type = "agent";
     ws.isAlive = true;
     ws.on("pong", () => { ws.isAlive = true; });
     let agentId: string | null = null;
@@ -148,14 +157,11 @@ export class WebSocketService {
       logger.error("Failed to serialize broadcast message — skipping:", err);
       return;
     }
-    this.wss.clients.forEach((client) => {
-      const extended = client as ExtendedWebSocket;
-      if (extended._type === "dashboard" && client.readyState === WebSocket.OPEN) {
-        try {
-          client.send(msg);
-        } catch (err) {
-          logger.error("Failed to send message to dashboard client:", err);
-        }
+    this.sseClients.forEach((_keepalive, res) => {
+      try {
+        res.write(`data: ${msg}\n\n`);
+      } catch (err) {
+        logger.error("Failed to send SSE message to dashboard client:", err);
       }
     });
   }
@@ -169,6 +175,11 @@ export class WebSocketService {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
     }
+    this.sseClients.forEach((keepalive, res) => {
+      clearInterval(keepalive);
+      try { res.end(); } catch {}
+    });
+    this.sseClients.clear();
     this.wss.close();
     logger.info("WebSocket service closed");
   }

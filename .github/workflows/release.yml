@@ -53,6 +53,27 @@ jobs:
         with:
           generate_release_notes: true
 
+      - name: Notify Discord
+        if: env.DISCORD_WEBHOOK_URL != ''
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          VERSION="${{ github.ref_name }}"
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${VERSION}"
+          curl -s -X POST "$DISCORD_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"🚀 Marionette ${VERSION} is out!\",
+                \"url\": \"${RELEASE_URL}\",
+                \"color\": 5793266,
+                \"fields\": [
+                  {\"name\": \"Install / Update\", \"value\": \"\`\`\`npm install -g @marionette-app/cli\`\`\`\", \"inline\": false},
+                  {\"name\": \"Release Notes\", \"value\": \"[View on GitHub](${RELEASE_URL})\", \"inline\": false}
+                ]
+              }]
+            }"
+
   build:
     name: Build ${{ matrix.artifact }}
     needs: create-release

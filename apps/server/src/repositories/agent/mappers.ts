@@ -34,6 +34,7 @@ export function mapToSnapshot(row: DbAgentRow, metadata: unknown): AgentSnapshot
     status_since: parseDbTimestamp(row.status_since) ?? undefined,
     source_file: row.source_file ?? undefined,
     parent_agent_id: row.parent_agent_id ?? undefined,
+    is_subagent: row.is_subagent === 1,
     metadata: metadata as AgentSnapshot['metadata'],
   };
 }

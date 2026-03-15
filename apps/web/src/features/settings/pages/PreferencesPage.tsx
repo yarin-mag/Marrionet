@@ -3,15 +3,18 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import { useUserPreferences } from "../../../hooks/use-user-preferences";
 import { useMcpPreferences } from "../hooks/use-mcp-preferences";
+import { useDiscordPreferences } from "../hooks/use-discord-preferences";
 import { AppearanceSection } from "../components/AppearanceSection";
 import { DashboardSection } from "../components/DashboardSection";
 import { NotificationsSection } from "../components/NotificationsSection";
 import { McpIntegrationSection } from "../components/McpIntegrationSection";
+import { DiscordSection } from "../components/DiscordSection";
 
 export function PreferencesPage() {
   const navigate = useNavigate();
   const { preferences, updatePreference } = useUserPreferences();
   const { mcpSetTaskEnabled, mcpJiraEnabled, saveError, handleMcpToggle, handleJiraToggle } = useMcpPreferences();
+  const { webhookUrl, saveError: discordSaveError, testStatus, handleChange, testWebhook } = useDiscordPreferences();
 
   return (
     <div className="container mx-auto max-w-4xl py-8 space-y-6">
@@ -39,6 +42,13 @@ export function PreferencesPage() {
         onMcpToggle={handleMcpToggle}
         onJiraToggle={handleJiraToggle}
         saveError={saveError}
+      />
+      <DiscordSection
+        webhookUrl={webhookUrl}
+        saveError={discordSaveError}
+        testStatus={testStatus}
+        onUpdate={handleChange}
+        onTest={testWebhook}
       />
     </div>
   );

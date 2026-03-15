@@ -7,15 +7,11 @@ import { API_URL } from "./constants";
 export interface NotificationPreferences {
   awaitingInput: boolean;
   agentFinished: boolean;
-  agentError: boolean;
-  agentStarted: boolean;
 }
 
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   awaitingInput: true,
-  agentFinished: false,
-  agentError: true,
-  agentStarted: false,
+  agentFinished: true,
 };
 
 export interface UserPreferences {

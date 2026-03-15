@@ -3,6 +3,7 @@ import { BaseRepository } from "./base.repository.js";
 const DEFAULTS: Record<string, unknown> = {
   mcpSetTaskEnabled: true,
   mcpJiraEnabled: true,
+  discordWebhookUrl: null,
 };
 
 export class PreferencesRepository extends BaseRepository {

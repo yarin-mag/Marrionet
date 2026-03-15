@@ -138,6 +138,7 @@ export type AgentSnapshot = {
   status_since?: string;
   source_file?: string;
   parent_agent_id?: string;
+  is_subagent?: boolean;
   metadata?: Record<string, unknown>;
 };
 
