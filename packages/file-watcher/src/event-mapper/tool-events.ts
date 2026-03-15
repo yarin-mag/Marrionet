@@ -14,6 +14,19 @@ export function entryHasToolUse(entry: ClaudeJsonlEntry): boolean {
   );
 }
 
+/** Returns true if any tool_use block in the entry is the Agent tool (subagent spawn). */
+export function entryHasAgentToolUse(entry: ClaudeJsonlEntry): boolean {
+  const content = entry.message?.content;
+  if (!Array.isArray(content)) return false;
+  return (content as unknown[]).some(
+    (block) =>
+      typeof block === "object" &&
+      block !== null &&
+      (block as Record<string, unknown>)["type"] === "tool_use" &&
+      (block as Record<string, unknown>)["name"] === "Agent"
+  );
+}
+
 /** Emitted when an assistant message contains a tool_use block — Claude is waiting for approval. */
 export function buildAwaitingInputEvent(
   entry: ClaudeJsonlEntry,
@@ -27,6 +40,22 @@ export function buildAwaitingInputEvent(
     type: "agent.status",
     summary: "Waiting for tool permission",
     status: "awaiting_input" as AgentStatus,
+  } as MarionetteEvent;
+}
+
+/** Emitted when an assistant message contains an Agent tool_use block — Claude delegated to a subagent. */
+export function buildDelegatingEvent(
+  entry: ClaudeJsonlEntry,
+  filePath: string,
+  runId: string,
+  source?: AgentMetadata['source']
+): MarionetteEvent {
+  const base = buildBase(entry, filePath, runId, source);
+  return {
+    ...base,
+    type: "agent.status",
+    summary: "Delegating to subagent",
+    status: "delegating" as AgentStatus,
   } as MarionetteEvent;
 }
 

@@ -5,6 +5,7 @@ import { withRetry } from "../utils/retry.js";
 
 const DISCORD_COLOR_GREEN = 0x57f287;
 const DISCORD_COLOR_RED = 0xed4245;
+const DISCORD_COLOR_AMBER = 0xfee75c;
 
 function formatDuration(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
@@ -25,7 +26,8 @@ export class NotificationService {
 
     const isDone = status === "idle" || status === "finished";
     const isError = status === "crashed" || status === "error";
-    if (!isDone && !isError) {
+    const isAwaitingInput = status === "awaiting_input";
+    if (!isDone && !isError && !isAwaitingInput) {
       logger.info(`[discord] skipping — status not actionable`);
       return;
     }
@@ -36,7 +38,9 @@ export class NotificationService {
 
     const embed = isDone
       ? this.buildFinishedEmbed(agent)
-      : this.buildErrorEmbed(agent, event);
+      : isAwaitingInput
+        ? this.buildAwaitingInputEmbed(agent)
+        : this.buildErrorEmbed(agent, event);
 
     logger.info(`[discord] firing POST`);
     withRetry(() => this.post(webhookUrl, embed), `discord-webhook agent=${agent.agent_id.slice(0, 12)}`);
@@ -60,6 +64,20 @@ export class NotificationService {
       title: `✅ Session finished — ${name}`,
       color: DISCORD_COLOR_GREEN,
       fields,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  private buildAwaitingInputEmbed(agent: AgentSnapshot) {
+    const name = agent.metadata?.custom_name as string | undefined ?? agent.agent_name ?? agent.agent_id.slice(0, 8);
+    const task = agent.current_task ?? "—";
+
+    return {
+      title: `⏳ Waiting for input — ${name}`,
+      color: DISCORD_COLOR_AMBER,
+      fields: [
+        { name: "Task", value: task, inline: false },
+      ],
       timestamp: new Date().toISOString(),
     };
   }

@@ -10,8 +10,10 @@ import {
   buildConversationTurnEvents,
   buildDisconnectedEvent,
   buildAwaitingInputEvent,
+  buildDelegatingEvent,
   buildToolResultEvent,
   entryHasToolUse,
+  entryHasAgentToolUse,
   deriveAgentId,
   deriveSessionRunId,
   buildMetadata,
@@ -139,9 +141,13 @@ export function buildEventsForEntry(
     if (entry.message?.usage) {
       events.push(buildLlmCallEvent(entry, filePath, state.currentRunId, state.source));
     }
-    // Detect tool call → Claude is waiting for permission
+    // Detect tool call → differentiate subagent delegation from regular tool permission
     if (entryHasToolUse(entry)) {
-      events.push(buildAwaitingInputEvent(entry, filePath, state.stableRunId, state.source));
+      if (entryHasAgentToolUse(entry)) {
+        events.push(buildDelegatingEvent(entry, filePath, state.stableRunId, state.source));
+      } else {
+        events.push(buildAwaitingInputEvent(entry, filePath, state.stableRunId, state.source));
+      }
     }
   } else if (entry.type === "system" && entry.subtype === "turn_duration") {
     // Lifecycle signal: emit run.ended with duration (tokens already recorded per-call)

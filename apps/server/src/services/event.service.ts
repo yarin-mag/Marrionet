@@ -8,7 +8,7 @@ import { logger } from "../utils/logger.js";
 
 const VALID_AGENT_STATUSES = new Set<string>([
   'starting', 'idle', 'working', 'blocked', 'error',
-  'finished', 'crashed', 'disconnected', 'awaiting_input'
+  'finished', 'crashed', 'disconnected', 'awaiting_input', 'delegating'
 ]);
 
 export interface BatchResult {

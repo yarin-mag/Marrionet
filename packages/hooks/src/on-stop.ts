@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 import { resolveAgentId } from "./lib/agent-resolver.js";
 import { deriveRunId } from "./lib/run-id.js";
 
-const ACTIVE_STATUSES = new Set(["working", "awaiting_input", "starting"]);
+const ACTIVE_STATUSES = new Set(["working", "awaiting_input", "delegating", "starting"]);
 const WAIT_MS = 3000;
 
 // ── Dependency interface (injectable for testing) ─────────────────────────

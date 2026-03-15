@@ -10,4 +10,4 @@ export const fileStates = new Map<string, FileState>();
  */
 export const activeFilePerSlug = new Map<string, string>(); // slug → current live filePath
 
-export const STALE_STATUSES = new Set<AgentStatus>(["working", "awaiting_input", "starting", "idle"]);
+export const STALE_STATUSES = new Set<AgentStatus>(["working", "awaiting_input", "delegating", "starting", "idle"]);

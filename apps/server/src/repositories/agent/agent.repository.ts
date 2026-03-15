@@ -6,7 +6,7 @@ import { mapToSnapshot } from "./mappers.js";
 export class AgentRepository extends BaseRepository {
   private static readonly VALID_STATUSES = new Set<string>([
     'starting','idle','working','blocked','error',
-    'finished','crashed','disconnected','awaiting_input'
+    'finished','crashed','disconnected','awaiting_input','delegating'
   ]);
 
   // ─── Upserts ──────────────────────────────────────────────────────────────

@@ -4,4 +4,4 @@ export { buildConversationStartedEvent, buildAgentStartedEvent, buildDisconnecte
 export { buildRunStartedEvent, buildTurnEndedEvent } from "./run-events.js";
 export { buildLlmCallEvent } from "./llm-events.js";
 export { extractMessageText, buildConversationTurnEvents } from "./conversation-events.js";
-export { entryHasToolUse, buildAwaitingInputEvent, buildToolResultEvent } from "./tool-events.js";
+export { entryHasToolUse, entryHasAgentToolUse, buildAwaitingInputEvent, buildDelegatingEvent, buildToolResultEvent } from "./tool-events.js";

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { agentTempFilePath } from "@marionette/shared/ids-node";
 
 /** Statuses that indicate an agent is actively running — used for API-based lookup. */
-const ACTIVE_STATUSES = new Set(["working", "awaiting_input", "starting"]);
+const ACTIVE_STATUSES = new Set(["working", "awaiting_input", "delegating", "starting"]);
 
 interface AgentRecord {
   agent_id: string;

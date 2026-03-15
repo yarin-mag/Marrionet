@@ -76,4 +76,10 @@ export const STATUS_COLORS: Record<AgentStatus, StatusConfig> = {
     bg: "bg-amber-50 dark:bg-amber-900/20",
     label: "Needs Attention",
   },
+  delegating: {
+    border: "border-l-blue-400",
+    badge: "info",
+    bg: "bg-blue-50 dark:bg-blue-900/20",
+    label: "Delegating",
+  },
 } as const;

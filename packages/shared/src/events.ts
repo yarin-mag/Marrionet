@@ -22,7 +22,8 @@ export type AgentStatus =
   | "finished"
   | "crashed"
   | "disconnected" // Claude process exited/killed
-  | "awaiting_input"; // Claude is waiting for user input/confirmation
+  | "awaiting_input" // Claude is waiting for user tool permission
+  | "delegating"; // Claude launched a subagent and is waiting for it to finish
 
 /** Named constants for every AgentStatus value — use instead of raw string literals. */
 export const AGENT_STATUS = {
@@ -35,6 +36,7 @@ export const AGENT_STATUS = {
   CRASHED: "crashed",
   DISCONNECTED: "disconnected",
   AWAITING_INPUT: "awaiting_input",
+  DELEGATING: "delegating",
 } as const satisfies Record<string, AgentStatus>;
 
 export type TaskStatus =
