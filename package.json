@@ -1,7 +1,7 @@
 {
   "name": "marionette",
   "private": true,
-  "version": "1.3.7",
+  "version": "1.3.8",
   "packageManager": "pnpm@9.0.0",
   "workspaces": [
     "apps/*",
