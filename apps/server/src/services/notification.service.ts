@@ -41,8 +41,11 @@ export class NotificationService {
       return;
     }
 
-    const webhookUrl = await this.getWebhookUrl();
-    if (!webhookUrl) return;
+    const [webhookUrl, channel] = await Promise.all([
+      this.getWebhookUrl(),
+      this.getNotificationChannel(),
+    ]);
+    if (!webhookUrl || channel !== "discord") return;
 
     const embed = isDone
       ? this.buildFinishedEmbed(agent)
@@ -114,6 +117,16 @@ export class NotificationService {
       return typeof url === "string" && url.length > 0 ? url : null;
     } catch {
       return null;
+    }
+  }
+
+  private async getNotificationChannel(): Promise<string> {
+    try {
+      const all = await this.prefsRepo.getAll();
+      const channel = all["notificationChannel"];
+      return typeof channel === "string" ? channel : "browser";
+    } catch {
+      return "browser";
     }
   }
 

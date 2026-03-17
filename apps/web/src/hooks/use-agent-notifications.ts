@@ -1,7 +1,7 @@
 import { useEffect, useRef, useMemo } from "react";
 import type { AgentSnapshot, AgentStatus } from "@marionette/shared";
 import { AGENT_STATUS } from "@marionette/shared";
-import { loadPreferences } from "../lib/user-preferences";
+import { loadPreferences, fetchServerPreference } from "../lib/user-preferences";
 import { AWAITING_INPUT_DEBOUNCE_MS } from "../lib/notification-constants";
 
 async function fireNotification(title: string, body: string): Promise<void> {
@@ -19,11 +19,22 @@ async function fireNotification(title: string, body: string): Promise<void> {
  * Which events notify is controlled by the user's notification preferences in localStorage.
  * `awaiting_input` is debounced so rapid back-and-forth transitions don't spam the user —
  * the notification only fires if the agent stays in that state for AWAITING_INPUT_DEBOUNCE_MS.
+ *
+ * Browser notifications are skipped when the user has selected the "discord" notification channel.
  */
 export function useAgentNotifications(agents: AgentSnapshot[]) {
   const prevStatuses = useRef<Record<string, AgentStatus | undefined>>({});
   // One pending debounce timer per agent — cancelled on every status change
   const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  // Cache the notification channel preference — fetched once on mount
+  const notificationChannel = useRef<"browser" | "discord">("browser");
+
+  // Fetch channel preference once on mount
+  useEffect(() => {
+    fetchServerPreference<"browser" | "discord">("notificationChannel", "browser").then((ch) => {
+      notificationChannel.current = ch;
+    });
+  }, []);
 
   // Stable string that only changes when an agent's status actually changes
   const statusKey = useMemo(
@@ -32,6 +43,9 @@ export function useAgentNotifications(agents: AgentSnapshot[]) {
   );
 
   useEffect(() => {
+    // Skip browser notifications when the user chose Discord as their channel
+    if (notificationChannel.current === "discord") return;
+
     const { notifications: prefs } = loadPreferences();
     const currentIds = new Set(agents.map((a) => a.agent_id));
 

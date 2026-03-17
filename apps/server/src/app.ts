@@ -11,12 +11,12 @@ import { config } from "./config/index.js";
 export function createApp() {
   const app = express();
 
-  // Middleware — restrict CORS to local origins only (localhost / 127.0.0.1)
+  // Middleware — restrict CORS to local origins and the GitHub Pages frontend
   app.use(cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (curl, Electron shell, same-origin) and
       // any localhost / 127.0.0.1 origin on any port.
-      if (!origin || origin === "null" || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      if (!origin || origin === "null" || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) || origin === "https://yarin-mag.github.io") {
         callback(null, true);
       } else {
         logger.warn(`CORS blocked origin: "${origin}"`);

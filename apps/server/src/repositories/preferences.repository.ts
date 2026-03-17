@@ -4,6 +4,7 @@ const DEFAULTS: Record<string, unknown> = {
   mcpSetTaskEnabled: true,
   mcpJiraEnabled: true,
   discordWebhookUrl: null,
+  notificationChannel: "browser",
 };
 
 export class PreferencesRepository extends BaseRepository {

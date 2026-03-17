@@ -3,19 +3,23 @@ import { fetchServerPreference, saveServerPreference } from "../../../lib/user-p
 
 interface DiscordPreferences {
   webhookUrl: string | null;
+  notificationChannel: "browser" | "discord";
   saveError: string | null;
   testStatus: "idle" | "success" | "error";
   handleChange: (value: string) => Promise<void>;
+  handleChannelChange: (channel: "browser" | "discord") => Promise<void>;
   testWebhook: () => Promise<void>;
 }
 
 export function useDiscordPreferences(): DiscordPreferences {
   const [webhookUrl, setWebhookUrl] = useState<string | null>(null);
+  const [notificationChannel, setNotificationChannel] = useState<"browser" | "discord">("browser");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [testStatus, setTestStatus] = useState<"idle" | "success" | "error">("idle");
 
   useEffect(() => {
     fetchServerPreference("discordWebhookUrl", "").then(setWebhookUrl);
+    fetchServerPreference<"browser" | "discord">("notificationChannel", "browser").then(setNotificationChannel);
   }, []);
 
   async function handleChange(value: string) {
@@ -23,6 +27,16 @@ export function useDiscordPreferences(): DiscordPreferences {
     setTestStatus("idle");
     try {
       await saveServerPreference("discordWebhookUrl", value);
+      setSaveError(null);
+    } catch {
+      setSaveError("Failed to save. Check your connection.");
+    }
+  }
+
+  async function handleChannelChange(channel: "browser" | "discord") {
+    setNotificationChannel(channel);
+    try {
+      await saveServerPreference("notificationChannel", channel);
       setSaveError(null);
     } catch {
       setSaveError("Failed to save. Check your connection.");
@@ -51,5 +65,5 @@ export function useDiscordPreferences(): DiscordPreferences {
     }
   }
 
-  return { webhookUrl, saveError, testStatus, handleChange, testWebhook };
+  return { webhookUrl, notificationChannel, saveError, testStatus, handleChange, handleChannelChange, testWebhook };
 }

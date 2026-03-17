@@ -8,13 +8,20 @@ import { AppearanceSection } from "../components/AppearanceSection";
 import { DashboardSection } from "../components/DashboardSection";
 import { NotificationsSection } from "../components/NotificationsSection";
 import { McpIntegrationSection } from "../components/McpIntegrationSection";
-import { DiscordSection } from "../components/DiscordSection";
 
 export function PreferencesPage() {
   const navigate = useNavigate();
   const { preferences, updatePreference } = useUserPreferences();
   const { mcpSetTaskEnabled, mcpJiraEnabled, saveError, handleMcpToggle, handleJiraToggle } = useMcpPreferences();
-  const { webhookUrl, saveError: discordSaveError, testStatus, handleChange, testWebhook } = useDiscordPreferences();
+  const {
+    webhookUrl,
+    notificationChannel,
+    saveError: discordSaveError,
+    testStatus,
+    handleChange,
+    handleChannelChange,
+    testWebhook,
+  } = useDiscordPreferences();
 
   return (
     <div className="container mx-auto max-w-4xl py-8 space-y-6">
@@ -35,6 +42,13 @@ export function PreferencesPage() {
       <NotificationsSection
         notifications={preferences.notifications}
         onUpdate={(updated) => updatePreference("notifications", updated)}
+        notificationChannel={notificationChannel}
+        onChannelChange={handleChannelChange}
+        webhookUrl={webhookUrl}
+        webhookSaveError={discordSaveError}
+        webhookTestStatus={testStatus}
+        onWebhookChange={handleChange}
+        onWebhookTest={testWebhook}
       />
       <McpIntegrationSection
         mcpSetTaskEnabled={mcpSetTaskEnabled}
@@ -42,13 +56,6 @@ export function PreferencesPage() {
         onMcpToggle={handleMcpToggle}
         onJiraToggle={handleJiraToggle}
         saveError={saveError}
-      />
-      <DiscordSection
-        webhookUrl={webhookUrl}
-        saveError={discordSaveError}
-        testStatus={testStatus}
-        onUpdate={handleChange}
-        onTest={testWebhook}
       />
     </div>
   );
