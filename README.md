@@ -34,7 +34,35 @@ After installing, open **http://localhost:8787**.
 
 ---
 
+## CLI Reference
+
+Once installed, the `marionette` command is available globally:
+
+| Command | Description |
+|---|---|
+| `marionette setup` | Register MCP server in Claude Code & configure auto-start |
+| `marionette start` | Start the dashboard server (+ file watcher & API proxy) |
+| `marionette stop` | Remove auto-start configuration & stop running processes |
+| `marionette status` | Check if the server is running |
+| `marionette logs` | Tail the server log file |
+| `marionette update` | Check for and install a newer release |
+| `marionette uninstall` | Fully remove Marionette from this machine |
+| `marionette --version` | Print the installed version |
+| `marionette --help` | Show help |
+
+---
+
 ## Uninstall
+
+The quickest way to uninstall is via the CLI (available after npm install):
+
+```bash
+marionette uninstall
+```
+
+This stops all running services, removes the MCP registration and hooks from Claude Code, clears the `ANTHROPIC_BASE_URL` environment variable, and deletes the installation directory.
+
+Alternatively, use the standalone scripts (no Node.js required):
 
 **macOS / Linux**
 ```bash
@@ -45,8 +73,6 @@ curl -fsSL https://raw.githubusercontent.com/yarin-mag/Marionette/master/scripts
 ```powershell
 irm https://raw.githubusercontent.com/yarin-mag/Marionette/master/scripts/uninstall.ps1 | iex
 ```
-
-This stops the running services, removes the MCP registration and hooks from Claude Code, clears the `ANTHROPIC_BASE_URL` environment variable, and deletes the installation directory.
 
 ---
 
