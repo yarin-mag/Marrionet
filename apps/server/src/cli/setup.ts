@@ -126,6 +126,9 @@ async function setupLaunchAgent(binaryPath: string, isProxy: boolean): Promise<v
 </dict></plist>`;
 
   writeFileSync(plistPath, plist);
+  // Unload first so an already-loaded agent (e.g. from a previous installation
+  // path) is replaced rather than silently keeping the old binary alive.
+  await execAsync(`launchctl unload "${plistPath}"`).catch(() => {});
   await execAsync(`launchctl load "${plistPath}"`).catch(() => {});
   console.log(`✓ ${isProxy ? "Proxy a" : "A"}uto-start configured (macOS LaunchAgent)`);
 }
