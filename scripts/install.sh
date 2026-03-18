@@ -4,8 +4,9 @@
 set -euo pipefail
 
 REPO="yarin-mag/Marionette"
-INSTALL_DIR="/usr/local/lib/marionette"
-BIN_LINK="/usr/local/bin/marionette"
+# Install into ~/.marionette/app — this is where the npm wrapper (@marionette-app/cli)
+# always looks for the real binary, so both install paths stay in sync.
+INSTALL_DIR="${HOME}/.marionette/app"
 
 # ── Detect OS / arch ──────────────────────────────────────────────────────────
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
@@ -63,14 +64,13 @@ curl -fsSL "$URL" | tar -xz -C "$TMP_DIR"
 
 # ── Install ───────────────────────────────────────────────────────────────────
 echo "==> Installing to ${INSTALL_DIR}"
-if [ -d "$INSTALL_DIR" ]; then
-  sudo rm -rf "$INSTALL_DIR"
-fi
-sudo mv "${TMP_DIR}/marionette" "$INSTALL_DIR"
-sudo ln -sf "${INSTALL_DIR}/bin/marionette" "$BIN_LINK"
+rm -rf "$INSTALL_DIR"
+mkdir -p "$(dirname "$INSTALL_DIR")"
+mv "${TMP_DIR}/marionette" "$INSTALL_DIR"
+chmod +x "${INSTALL_DIR}/bin/marionette"
 
 echo "==> Installed! Running setup..."
-"$BIN_LINK" setup
+"${INSTALL_DIR}/bin/marionette" setup
 
 echo ""
 echo "✓ Marionette is ready."
