@@ -1,6 +1,6 @@
 {
   "name": "@marionette-app/cli",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "description": "Real-time monitoring for Claude Code sessions",
   "bin": {
     "marionette": "./bin/marionette.js"
