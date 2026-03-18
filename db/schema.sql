@@ -4,7 +4,7 @@
 CREATE TABLE IF NOT EXISTS agents (
     agent_id TEXT PRIMARY KEY,
     agent_name TEXT,
-    status TEXT DEFAULT 'working' CHECK (status IN ('working', 'starting', 'blocked', 'idle', 'finished', 'disconnected', 'crashed', 'error', 'awaiting_input')),
+    status TEXT DEFAULT 'working' CHECK (status IN ('working', 'starting', 'blocked', 'idle', 'finished', 'disconnected', 'crashed', 'error', 'awaiting_input', 'delegating')),
     terminal TEXT,
     cwd TEXT,
     last_activity TIMESTAMP,
